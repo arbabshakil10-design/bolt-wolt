@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Double Order Calculator</title>
+<style>
+  :root {
+    --bg: #f6f7f4;
+    --surface: #ffffff;
+    --ink: #14181b;
+    --muted: #5d676e;
+    --line: #dde1dc;
+    --bolt: #1fa866;
+    --wolt: #0a8fd0;
+    --warn: #c0392b;
+    --good: #1c7a4a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101315;
+      --surface: #1a1f22;
+      --ink: #f1f4f2;
+      --muted: #9aa5ab;
+      --line: #2c3337;
+      --bolt: #3ed98d;
+      --wolt: #4cb8f0;
+      --warn: #ff7b6b;
+      --good: #4fd790;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.4;
+    padding: 16px 14px 48px;
+    max-width: 520px;
+    margin-inline: auto;
+  }
+  h1 { font-size: 22px; margin: 4px 0 2px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  h2 { font-size: 15px; margin: 0 0 10px; font-weight: 700; }
+  .field { margin-bottom: 10px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+  .sq { border-radius: 3px; }
+  .row { display: flex; gap: 8px; }
+  input[type=text], input[type=number] {
+    width: 100%; font: inherit; font-size: 16px; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
+  }
+  input:focus-visible, button:focus-visible { outline: 3px solid var(--wolt); outline-offset: 1px; }
+  button {
+    font: inherit; font-weight: 700; font-size: 14px; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 0 14px; cursor: pointer; white-space: nowrap;
+  }
+  button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .err { color: var(--warn); font-size: 12.5px; margin-top: 4px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .grid3 .field label { font-size: 12.5px; }
+  details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { font-family: system-ui, sans-serif; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .verdict { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 4px; }
+  .pill { display: inline-block; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 99px; border: 1px solid currentColor; }
+  .pill.good { color: var(--good); }
+  .pill.mid { color: var(--muted); }
+  .pill.bad { color: var(--warn); }
+  .route { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+  .route.best { border-top: 0; padding-top: 0; margin-top: 0; }
+  .route .tot { font-weight: 800; font-size: 16px; }
+  .steps { margin: 6px 0 0; padding: 0; list-style: none; font-size: 14px; }
+  .steps li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; }
+  .steps .t { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tag { font-size: 12px; color: var(--muted); }
+  .empty { color: var(--muted); font-size: 14px; }
+  .found { font-size: 12.5px; color: var(--good); margin-top: 4px; word-break: break-word; }
+  .seg { display: flex; gap: 6px; margin: 8px 0 4px; }
+  .seg button { flex: 1; padding: 8px 0; }
+  .seg button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chips button { font-weight: 500; font-size: 13px; padding: 7px 10px; text-align: left; white-space: normal; }
+  input[type=file] { font-size: 14px; width: 100%; }
+</style>
+</head>
+<body>
+
+<h1>Double Order Calculator</h1>
+<p class="sub">Bolt + Wolt, dono orders ka rasta aur waqt pehle hi pata karo.</p>
+
+<section>
+  <h2>Locations</h2>
+
+  <div class="field">
+    <label><span class="dot" style="background:var(--ink)"></span>Meri location</label>
+    <div class="row">
+      <input type="text" id="me" placeholder="lat,lng, link ya address" inputmode="text" autocomplete="off">
+      <button id="gps" class="primary" type="button">GPS</button>
+    </div>
+    <div class="err" id="err-me"></div>
+  </div>
+
+  <div class="field">
+    <label><span class="dot" style="background:var(--bolt)"></span>Bolt pickup</label>
+    <input type="text" id="bp" placeholder="lat,lng, link ya address" autocomplete="off">
+    <div class="err" id="err-bp"></div>
+  </div>
+
+  <div class="field">
+    <label><span class="dot" style="background:var(--wolt)"></span>Wolt pickup</label>
+    <input type="text" id="wp" placeholder="lat,lng, link ya address" autocomplete="off">
+    <div class="err" id="err-wp"></div>
+  </div>
+
+  <div class="field">
+    <details>
+      <summary>Drop locations (optional, direction check ke liye)</summary>
+      <div style="margin-top:10px">
+        <div class="field">
+          <label><span class="dot sq" style="background:var(--bolt)"></span>Bolt drop</label>
+          <input type="text" id="bd" placeholder="lat,lng, link ya address" autocomplete="off">
+          <div class="err" id="err-bd"></div>
+        </div>
+        <div class="field">
+          <label><span class="dot sq" style="background:var(--wolt)"></span>Wolt drop</label>
+          <input type="text" id="wd" placeholder="lat,lng, link ya address" autocomplete="off">
+          <div class="err" id="err-wd"></div>
+        </div>
+      </div>
+    </details>
+    <div class="hint">Teen tareeqe: coordinates paste karo, Google Maps ka lamba link paste karo, ya seedha address likho aur Enter dabao. Chhota link (maps.app.goo.gl) kaam nahi karta.</div>
+  </div>
+</section>
+
+<section>
+  <h2>Screenshot se address</h2>
+  <div class="hint" style="margin:0 0 10px">Bolt ya Wolt order ka screenshot daalo. Padhi hui lines niche aayengi, jis line pe tap karo wo Pickup ya Drop mein chali jayegi.</div>
+  <div class="field">
+    <label><span class="dot" style="background:var(--bolt)"></span>Bolt screenshot</label>
+    <input type="file" accept="image/*" id="ss-b">
+    <div class="seg" data-app="b"><button type="button" data-t="p" class="on">Pickup</button><button type="button" data-t="d">Drop</button></div>
+    <div class="hint" id="st-b"></div>
+    <div class="chips" id="chips-b"></div>
+  </div>
+  <div class="field">
+    <label><span class="dot" style="background:var(--wolt)"></span>Wolt screenshot</label>
+    <input type="file" accept="image/*" id="ss-w">
+    <div class="seg" data-app="w"><button type="button" data-t="p" class="on">Pickup</button><button type="button" data-t="d">Drop</button></div>
+    <div class="hint" id="st-w"></div>
+    <div class="chips" id="chips-w"></div>
+  </div>
+</section>
+
+<section>
+  <h2>Settings</h2>
+  <div class="grid3">
+    <div class="field">
+      <label for="speed">Speed km/h</label>
+      <input type="number" id="speed" value="18" min="5" max="60" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label for="road">Road factor</label>
+      <input type="number" id="road" value="1.3" min="1" max="2" step="0.05" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label for="stop">Pickup wait min</label>
+      <input type="number" id="stop" value="4" min="0" max="30" inputmode="decimal">
+    </div>
+  </div>
+  <div class="hint">Road factor: seedhi line ko asli sarak ke hisab se barhata hai (1.3 matlab 30% zyada).</div>
+</section>
+
+<section id="map-card" hidden>
+  <h2>Triangle</h2>
+  <div id="map"></div>
+</section>
+
+<section id="result-card">
+  <h2>Natija</h2>
+  <div id="result"><div class="empty">Apni location aur dono pickup points daalo.</div></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var ids = ['me', 'bp', 'wp', 'bd', 'wd'];
+  var NAMES = { me: 'Main', bp: 'Bolt pickup', wp: 'Wolt pickup', bd: 'Bolt drop', wd: 'Wolt drop' };
+  var cache = {};
+  var COLORS = { me: 'var(--ink)', bp: 'var(--bolt)', wp: 'var(--wolt)', bd: 'var(--bolt)', wd: 'var(--wolt)' };
+
+  function parseLoc(s) {
+    s = (s || '').trim();
+    if (!s) return null;
+    var m;
+    try { s = decodeURIComponent(s); } catch (e) {}
+    m = s.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+    if (!m) m = s.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+    if (!m) m = s.match(/[?&](?:q|ll|query|destination)=(-?\d+(?:\.\d+)?)[,+ ]\s*(-?\d+(?:\.\d+)?)/);
+    if (!m) m = s.match(/(-?\d{1,3}\.\d+)\s*[,;\s]\s*(-?\d{1,3}\.\d+)/);
+    if (!m) return 'text';
+    var lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return 'bad';
+    return { lat: lat, lng: lng };
+  }
+
+  function hav(a, b) {
+    var R = 6371, rad = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  function bearing(a, b) {
+    var rad = Math.PI / 180;
+    var y = (b.lng - a.lng) * Math.cos(a.lat * rad);
+    var x = b.lat - a.lat;
+    return Math.atan2(y, x) / rad;
+  }
+
+  function fmtKm(k) { return k < 1 ? Math.round(k * 1000) + ' m' : k.toFixed(2) + ' km'; }
+  function fmtMin(m) { return Math.round(m) + ' min'; }
+
+  function num(id, def) {
+    var v = parseFloat($(id).value);
+    return isFinite(v) && v > 0 ? v : def;
+  }
+
+  function perms(arr) {
+    if (arr.length <= 1) return [arr];
+    var out = [];
+    arr.forEach(function (x, i) {
+      perms(arr.slice(0, i).concat(arr.slice(i + 1))).forEach(function (p) { out.push([x].concat(p)); });
+    });
+    return out;
+  }
+
+  function evaluate(seq, P, road, speed, stop) {
+    var t = 0, km = 0, prev = 'me', steps = [], arrive = {};
+    seq.forEach(function (k) {
+      var d = hav(P[prev], P[k]) * road;
+      km += d;
+      t += d / speed * 60;
+      arrive[k] = t;
+      steps.push({ key: k, d: d, t: t });
+      if (k === 'bp' || k === 'wp') t += stop;
+      prev = k;
+    });
+    return { seq: seq, km: km, min: steps[steps.length - 1].t, steps: steps, arrive: arrive };
+  }
+
+  function drawMap(P, keys) {
+    var rad = Math.PI / 180;
+    var lat0 = keys.reduce(function (s, k) { return s + P[k].lat; }, 0) / keys.length;
+    var pts = {};
+    keys.forEach(function (k) {
+      pts[k] = { x: (P[k].lng * Math.cos(lat0 * rad)), y: -P[k].lat };
+    });
+    var xs = keys.map(function (k) { return pts[k].x; });
+    var ys = keys.map(function (k) { return pts[k].y; });
+    var minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+    var minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+    var W = 340, H = 270, pad = 46;
+    var spanX = Math.max(maxX - minX, 1e-6), spanY = Math.max(maxY - minY, 1e-6);
+    var sc = Math.min((W - 2 * pad) / spanX, (H - 2 * pad) / spanY);
+    var offX = (W - spanX * sc) / 2, offY = (H - spanY * sc) / 2;
+    var S = {};
+    keys.forEach(function (k) {
+      S[k] = { x: offX + (pts[k].x - minX) * sc, y: offY + (pts[k].y - minY) * sc };
+    });
+
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Triangle map">';
+
+    function line(a, b, dashed, color) {
+      svg += '<line x1="' + S[a].x + '" y1="' + S[a].y + '" x2="' + S[b].x + '" y2="' + S[b].y +
+        '" stroke="' + color + '" stroke-width="' + (dashed ? 2 : 3) + '"' +
+        (dashed ? ' stroke-dasharray="6 5"' : '') + ' stroke-linecap="round" opacity="' + (dashed ? 0.8 : 1) + '"/>';
+    }
+    function label(a, b, road) {
+      var d = hav(P[a], P[b]) * road;
+      var x = (S[a].x + S[b].x) / 2, y = (S[a].y + S[b].y) / 2;
+      svg += '<text x="' + x + '" y="' + (y - 5) + '" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">' + fmtKm(d) + '</text>';
+    }
+
+    var road = num('road', 1.3);
+    line('me', 'bp', false, 'var(--muted)');
+    line('me', 'wp', false, 'var(--muted)');
+    line('bp', 'wp', false, 'var(--ink)');
+    if (P.bd) line('bp', 'bd', true, 'var(--bolt)');
+    if (P.wd) line('wp', 'wd', true, 'var(--wolt)');
+    label('me', 'bp', road);
+    label('me', 'wp', road);
+    label('bp', 'wp', road);
+    if (P.bd) label('bp', 'bd', road);
+    if (P.wd) label('wp', 'wd', road);
+
+    keys.forEach(function (k) {
+      var isDrop = (k === 'bd' || k === 'wd');
+      var c = COLORS[k], x = S[k].x, y = S[k].y;
+      if (isDrop) {
+        svg += '<rect x="' + (x - 7) + '" y="' + (y - 7) + '" width="14" height="14" rx="3" fill="var(--surface)" stroke="' + c + '" stroke-width="3"/>';
+      } else {
+        svg += '<circle cx="' + x + '" cy="' + y + '" r="9" fill="' + c + '" stroke="var(--surface)" stroke-width="2"/>';
+      }
+      var ty = y < 26 ? y + 26 : y - 15;
+      svg += '<text x="' + x + '" y="' + ty + '" text-anchor="middle" font-size="12.5" font-weight="700" fill="var(--ink)">' + NAMES[k] + '</text>';
+    });
+    svg += '</svg>';
+    $('map').innerHTML = svg;
+  }
+
+  function seqText(r) {
+    return r.seq.map(function (k) { return NAMES[k]; }).join(' → ');
+  }
+
+  function stepsHtml(r) {
+    var h = '<ul class="steps">';
+    var prevName = 'Main';
+    r.steps.forEach(function (s) {
+      h += '<li><span class="dot ' + ((s.key === 'bd' || s.key === 'wd') ? 'sq' : '') + '" style="background:' + COLORS[s.key] + '"></span>' +
+        '<span>' + NAMES[s.key] + ' <span class="tag">(' + fmtKm(s.d) + ')</span></span>' +
+        '<span class="t">' + fmtMin(s.t) + '</span></li>';
+    });
+    return h + '</ul>';
+  }
+
+  function calc() {
+    var P = {};
+    ids.forEach(function (id) { if (cache[id]) P[id] = cache[id]; });
+
+    var result = $('result'), mapCard = $('map-card');
+    if (!P.me || !P.bp || !P.wp) {
+      mapCard.hidden = true;
+      result.innerHTML = '<div class="empty">Apni location aur dono pickup points daalo.</div>';
+      return;
+    }
+
+    var road = num('road', 1.3), speed = num('speed', 18);
+    var stopEl = parseFloat($('stop').value);
+    var stop = isFinite(stopEl) && stopEl >= 0 ? stopEl : 4;
+
+    var keys = ['me', 'bp', 'wp'];
+    var hasDrops = !!(P.bd && P.wd);
+    if (P.bd && !P.wd) delete P.bd;
+    if (P.wd && !P.bd) delete P.wd;
+    if (hasDrops) keys.push('bd', 'wd');
+    drawMap(P, keys);
+    mapCard.hidden = false;
+
+    var routes;
+    if (hasDrops) {
+      routes = perms(['bp', 'wp', 'bd', 'wd']).filter(function (p) {
+        return p.indexOf('bp') < p.indexOf('bd') && p.indexOf('wp') < p.indexOf('wd');
+      });
+    } else {
+      routes = [['bp', 'wp'], ['wp', 'bp']];
+    }
+    var evals = routes.map(function (s) { return evaluate(s, P, road, speed, stop); })
+      .sort(function (a, b) { return a.min - b.min; });
+    var best = evals[0];
+
+    var pp = hav(P.bp, P.wp) * road;
+    var closeCls = pp < 0.6 ? 'good' : (pp < 1.5 ? 'mid' : 'bad');
+    var closeTxt = pp < 0.6 ? 'Pickups qareeb hain, double order theek' :
+                   (pp < 1.5 ? 'Pickups darmiyane faasle pe hain' : 'Pickups door hain, soch ke lo');
+
+    var h = '';
+    h += '<div class="route best">';
+    h += '<p class="verdict">' + seqText(best) + '</p>';
+    h += '<div class="tot">' + fmtKm(best.km) + ' · ' + fmtMin(best.min) + '</div>';
+    h += stepsHtml(best);
+    h += '</div>';
+
+    h += '<div class="route"><span class="pill ' + closeCls + '">' + closeTxt + '</span>';
+    h += '<div class="hint" style="margin-top:8px">Bolt pickup se Wolt pickup tak: <b>' + fmtKm(pp) + '</b> · <b>' + fmtMin(pp / speed * 60) + '</b></div></div>';
+
+    if (hasDrops) {
+      var mid = { lat: (P.bp.lat + P.wp.lat) / 2, lng: (P.bp.lng + P.wp.lng) / 2 };
+      var a1 = bearing(mid, P.bd), a2 = bearing(mid, P.wd);
+      var diff = Math.abs(a1 - a2);
+      if (diff > 180) diff = 360 - diff;
+      var dd = hav(P.bd, P.wd) * road;
+      var opp = diff > 110;
+      h += '<div class="route"><span class="pill ' + (opp ? 'bad' : (diff > 60 ? 'mid' : 'good')) + '">' +
+        (opp ? 'Drops ulti direction mein hain' : (diff > 60 ? 'Drops thori alag direction mein' : 'Drops ek hi direction mein')) + '</span>';
+      h += '<div class="hint" style="margin-top:8px">Bolt drop se Wolt drop tak: <b>' + fmtKm(dd) + '</b> · <b>' + fmtMin(dd / speed * 60) + '</b></div>';
+      h += '<div class="hint">Best route mein Bolt drop <b>' + fmtMin(best.arrive.bd) + '</b> pe, Wolt drop <b>' + fmtMin(best.arrive.wd) + '</b> pe.</div></div>';
+    }
+
+    if (evals.length > 1) {
+      h += '<div class="route"><details><summary>Baqi routes</summary>';
+      evals.slice(1).forEach(function (r) {
+        h += '<div class="route"><div class="tot">' + fmtKm(r.km) + ' · ' + fmtMin(r.min) +
+          ' <span class="tag">(+' + fmtMin(r.min - best.min) + ')</span></div><div class="tag">' + seqText(r) + '</div></div>';
+      });
+      h += '</details></div>';
+    }
+
+    result.innerHTML = h;
+  }
+
+  ids.forEach(function (id) {
+    var f = document.createElement('div');
+    f.className = 'found'; f.id = 'found-' + id;
+    $('err-' + id).parentNode.insertBefore(f, $('err-' + id));
+  });
+
+  function isPt(r) { return r && typeof r === 'object'; }
+
+  function geocode(id, q) {
+    var f = $('found-' + id), e = $('err-' + id);
+    f.textContent = 'Dhoondh raha hun...'; e.textContent = '';
+    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(q);
+    if (cache.me && id !== 'me') {
+      var d = 0.25, m = cache.me;
+      url += '&viewbox=' + (m.lng - d) + ',' + (m.lat + d) + ',' + (m.lng + d) + ',' + (m.lat - d);
+    }
+    fetch(url, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if ($(id).value.trim() !== q) return;
+        if (!res.length) {
+          f.textContent = '';
+          e.textContent = 'Address nahi mila. Street, number aur sheher likh ke dobara try karo.';
+          return;
+        }
+        cache[id] = { lat: parseFloat(res[0].lat), lng: parseFloat(res[0].lon) };
+        f.textContent = '\u2713 ' + res[0].display_name;
+        calc();
+      })
+      .catch(function () {
+        f.textContent = '';
+        e.textContent = 'Search nahi chala. Internet check karo ya coordinates paste karo.';
+      });
+  }
+
+  function onInput(id) {
+    var r = parseLoc($(id).value);
+    $('err-' + id).textContent = '';
+    $('found-' + id).textContent = '';
+    if (isPt(r)) { cache[id] = r; $('found-' + id).textContent = 'Coordinates \u2713'; }
+    else {
+      delete cache[id];
+      if (r === 'bad') $('err-' + id).textContent = 'Coordinates galat hain.';
+    }
+    calc();
+  }
+
+  function onCommit(id) {
+    var raw = $(id).value.trim();
+    if (!cache[id] && raw.length >= 3 && parseLoc(raw) === 'text') geocode(id, raw);
+  }
+
+  ids.forEach(function (id) {
+    $(id).addEventListener('input', function () { onInput(id); });
+    $(id).addEventListener('change', function () { onCommit(id); });
+  });
+  ['speed', 'road', 'stop'].forEach(function (id) { $(id).addEventListener('input', calc); });
+
+  $('gps').addEventListener('click', function () {
+    var btn = $('gps'), e = $('err-me');
+    e.textContent = '';
+    if (!navigator.geolocation) { e.textContent = 'Is browser mein GPS nahi hai.'; return; }
+    btn.textContent = '...';
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      cache.me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      $('me').value = cache.me.lat.toFixed(6) + ', ' + cache.me.lng.toFixed(6);
+      $('found-me').textContent = 'GPS \u2713 (\u00b1' + Math.round(pos.coords.accuracy) + ' m)';
+      btn.textContent = 'GPS';
+      calc();
+    }, function () {
+      btn.textContent = 'GPS';
+      e.textContent = 'GPS nahi mila. Location permission on karo. File se khol rahe ho to https wali jagah se kholo.';
+    }, { enableHighAccuracy: true, timeout: 12000 });
+  });
+
+  var mode = { b: 'p', w: 'p' };
+  document.querySelectorAll('.seg').forEach(function (seg) {
+    seg.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button');
+      if (!b) return;
+      mode[seg.dataset.app] = b.dataset.t;
+      seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    });
+  });
+
+  function looksAddr(s) {
+    return /\d|str\b|strada|bd\.?|bulevard|calea|sos|\u0219os|aleea|intr|nr\b|road|street|lane|colony|block|chowk|market/i.test(s);
+  }
+
+  function showChips(app, text) {
+    var seen = {}, lines = text.split('\n').map(function (l) { return l.replace(/\s+/g, ' ').trim(); })
+      .filter(function (l) { return l.length >= 5 && /[A-Za-z\u0100-\u024f]{3}/.test(l) && !seen[l] && (seen[l] = 1); });
+    var good = lines.filter(looksAddr), rest = lines.filter(function (l) { return !looksAddr(l); });
+    var all = good.concat(rest).slice(0, 14);
+    var box = $('chips-' + app), st = $('st-' + app);
+    box.innerHTML = '';
+    if (!all.length) { st.textContent = 'Kuch nahi padha gaya. Saaf screenshot try karo ya address khud likho.'; return; }
+    st.textContent = 'Line pe tap karo. Upar wale button se Pickup ya Drop chuno.';
+    all.forEach(function (line) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = line;
+      b.addEventListener('click', function () {
+        var id = app + (mode[app] === 'p' ? 'p' : 'd');
+        if (id === 'bd' || id === 'wd') document.querySelector('details').open = true;
+        $(id).value = line;
+        onInput(id);
+        onCommit(id);
+        $(id).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function ocr(app, file) {
+    var st = $('st-' + app);
+    $('chips-' + app).innerHTML = '';
+    if (typeof Tesseract === 'undefined') {
+      st.textContent = 'Padhne wala module load nahi hua. Internet check karo aur page dobara kholo.';
+      return;
+    }
+    st.textContent = 'Screenshot padh raha hun... 0%';
+    Tesseract.createWorker('ron+eng', 1, {
+      logger: function (m) {
+        if (m.status === 'recognizing text') st.textContent = 'Screenshot padh raha hun... ' + Math.round(m.progress * 100) + '%';
+      }
+    }).then(function (w) {
+      return w.recognize(file).then(function (res) {
+        return w.terminate().then(function () { return res; });
+      });
+    }).then(function (res) {
+      showChips(app, res.data.text || '');
+    }).catch(function () {
+      st.textContent = 'Padhne mein masla aaya. Dobara try karo ya address khud likho.';
+    });
+  }
+
+  $('ss-b').addEventListener('change', function () { if (this.files[0]) ocr('b', this.files[0]); });
+  $('ss-w').addEventListener('change', function () { if (this.files[0]) ocr('w', this.files[0]); });
+
+  calc();
+})();
+</script>
+</body>
+</html>
