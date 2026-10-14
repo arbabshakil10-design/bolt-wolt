@@ -98,6 +98,10 @@
   .resets { display: flex; gap: 8px; margin-bottom: 14px; }
   .resets button { flex: 1; padding: 10px 0; border-width: 2px; }
   .reset { padding: 8px 16px; color: var(--warn); border-color: var(--warn); background: transparent; }
+  .pickseg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .pickseg button { flex: 1 1 45%; padding: 10px 0; border: 2px solid var(--c); }
+  .pickseg button.on { background: var(--c); color: #fff; }
+  button.live { background: var(--bolt); border-color: var(--bolt); color: #06210f; }
 </style>
 </head>
 <body>
@@ -154,6 +158,20 @@
   </div>
 </section>
 
+<section id="map-card">
+  <h2>Map</h2>
+  <div class="pickseg" id="pick-seg">
+    <button type="button" data-id="bp" class="on" style="--c:var(--bolt)">Bolt pickup</button>
+    <button type="button" data-id="wp" style="--c:var(--wolt)">Wolt pickup</button>
+    <button type="button" data-id="bd" style="--c:var(--bolt)">Bolt drop</button>
+    <button type="button" data-id="wd" style="--c:var(--wolt)">Wolt drop</button>
+  </div>
+  <div class="hint" style="margin:0 0 8px">Upar point chuno, phir map pe jagah par 2-3 second dabake rakho. Wahan ka address aur distance khud nikal aayega.</div>
+  <div id="map"></div>
+  <div class="hint">Number = jaane ka order. Narangi line = asli sarak ka rasta.</div>
+  <div class="hint" id="route-note"></div>
+</section>
+
 <section>
   <h2>Screenshot se address</h2>
   <div class="hint" style="margin:0 0 10px">Bolt ya Wolt order ka screenshot daalo. Padhi hui lines niche aayengi, jis line pe tap karo wo Pickup ya Drop mein chali jayegi.</div>
@@ -192,12 +210,7 @@
   <div class="hint">Road factor: seedhi line ko asli sarak ke hisab se barhata hai (1.3 matlab 30% zyada).</div>
 </section>
 
-<section id="map-card" hidden>
-  <h2>Map aur asli rasta</h2>
-  <div id="map"></div>
-  <div class="hint">Number = jaane ka order. Narangi line = asli sarak ka rasta.</div>
-  <div class="hint" id="route-note"></div>
-</section>
+
 
 <section id="result-card">
   <h2>Natija</h2>
@@ -337,11 +350,15 @@
   function ensureMap() {
     if (map) return;
     map = L.map('map');
+    map.setView([44.4268, 26.1025], 12);
+    map.on('contextmenu', function (e) { onLongPress(e); });
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19, attribution: '&copy; OpenStreetMap'
     }).addTo(map);
     layer = L.layerGroup().addTo(map);
   }
+
+  var lastFit = null, meCentered = false;
 
   function drawMap(P, keys, best, line) {
     if (typeof L === 'undefined') {
@@ -351,26 +368,38 @@
     ensureMap();
     map.invalidateSize();
     layer.clearLayers();
-    var order = {}, bounds = [];
-    best.seq.forEach(function (k, i) { order[k] = i + 1; });
-    if (line) {
+    var order = {};
+    if (best) best.seq.forEach(function (k, i) { order[k] = i + 1; });
+    if (best && line) {
       L.polyline(line, { color: '#ff6b00', weight: 6, opacity: 0.9 }).addTo(layer);
-      bounds = bounds.concat(line);
-    } else {
+    } else if (best) {
       var pts = [P.me].concat(best.seq.map(function (k) { return P[k]; })).map(function (p) { return [p.lat, p.lng]; });
       L.polyline(pts, { color: '#ff6b00', weight: 4, dashArray: '8 8' }).addTo(layer);
-      bounds = bounds.concat(pts);
     }
     keys.forEach(function (k) {
       var isDrop = (k === 'bd' || k === 'wd');
-      var txt = k === 'me' ? '' : order[k];
+      var txt = k === 'me' ? '' : (order[k] || '');
       var html = '<div class="pin' + (isDrop ? ' drop' : '') + '" style="--c:' + HEX[k] + '">' + txt + '</div>';
       L.marker([P[k].lat, P[k].lng], {
         icon: L.divIcon({ className: '', html: html, iconSize: [28, 28], iconAnchor: [14, 14] })
       }).addTo(layer).bindTooltip(NAMES[k], { direction: 'top', offset: [0, -12] });
-      bounds.push([P[k].lat, P[k].lng]);
     });
-    map.fitBounds(bounds, { padding: [30, 30] });
+    if (!P.me) meCentered = false;
+    var fitKey = keys.filter(function (k) { return k !== 'me'; }).map(function (k) {
+      return k + P[k].lat.toFixed(5) + P[k].lng.toFixed(5);
+    }).join('|');
+    if (fitKey !== lastFit || (!meCentered && P.me)) {
+      lastFit = fitKey;
+      if (P.me) meCentered = true;
+      var b = keys.map(function (k) { return [P[k].lat, P[k].lng]; });
+      if (line) b = b.concat(line);
+      if (b.length > 1) map.fitBounds(b, { padding: [30, 30] });
+      else if (b.length === 1) map.setView(b[0], 15);
+    }
+  }
+
+  function drawPartial(P) {
+    drawMap(P, ids.filter(function (id) { return P[id]; }), null, null);
   }
 
   function seqText(r) {
@@ -398,8 +427,9 @@
     ids.forEach(function (id) { if (cache[id]) P[id] = cache[id]; });
     var result = $('result'), mapCard = $('map-card');
     if (!P.me || !P.bp || !P.wp) {
-      mapCard.hidden = true;
-      result.innerHTML = '<div class="empty">Apni location aur dono pickup points daalo.</div>';
+      $('route-note').textContent = '';
+      drawPartial(P);
+      result.innerHTML = '<div class="empty">Apni location aur dono pickup points daalo, ya map pe jagah par 2-3 second dabake rakho.</div>';
       return;
     }
     if (P.bd && !P.wd) delete P.bd;
@@ -539,21 +569,42 @@
   });
   ['speed', 'road', 'stop'].forEach(function (id) { $(id).addEventListener('input', calc); });
 
+  var watchId = null, lastMe = null, liveTimer = null, lastCalcAt = 0;
+
+  function stopLive() {
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    clearTimeout(liveTimer);
+    $('gps').textContent = 'GPS';
+    $('gps').classList.remove('live');
+  }
+
+  function liveCalc() {
+    var wait = Math.max(0, 8000 - (Date.now() - lastCalcAt));
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(function () { lastCalcAt = Date.now(); calc(); }, wait);
+  }
+
+  $('me').addEventListener('input', stopLive);
+
   $('gps').addEventListener('click', function () {
-    var btn = $('gps'), e = $('err-me');
+    var e = $('err-me');
     e.textContent = '';
+    if (watchId !== null) { stopLive(); $('found-me').textContent = 'Live band kar diya.'; return; }
     if (!navigator.geolocation) { e.textContent = 'Is browser mein GPS nahi hai.'; return; }
-    btn.textContent = '...';
-    navigator.geolocation.getCurrentPosition(function (pos) {
-      cache.me = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      $('me').value = cache.me.lat.toFixed(6) + ', ' + cache.me.lng.toFixed(6);
-      $('found-me').textContent = 'GPS \u2713 (\u00b1' + Math.round(pos.coords.accuracy) + ' m)';
-      btn.textContent = 'GPS';
-      calc();
+    $('gps').textContent = 'Live \u25cf';
+    $('gps').classList.add('live');
+    watchId = navigator.geolocation.watchPosition(function (pos) {
+      var c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      $('found-me').textContent = 'Live \u2713 (\u00b1' + Math.round(pos.coords.accuracy) + ' m)';
+      if (cache.me && lastMe && hav(lastMe, c) < 0.02) return;
+      lastMe = c;
+      cache.me = c;
+      $('me').value = c.lat.toFixed(6) + ', ' + c.lng.toFixed(6);
+      liveCalc();
     }, function () {
-      btn.textContent = 'GPS';
+      stopLive();
       e.textContent = 'GPS nahi mila. Location permission on karo. File se khol rahe ho to https wali jagah se kholo.';
-    }, { enableHighAccuracy: true, timeout: 12000 });
+    }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
   });
 
   var mode = { b: 'p', w: 'p' };
@@ -638,8 +689,10 @@
     document.querySelectorAll('.seg').forEach(function (seg) {
       seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x.dataset.t === 'p'); });
     });
-    $('map-card').hidden = true;
-    if (layer) layer.clearLayers();
+    stopLive();
+    lastFit = null;
+    meCentered = false;
+    calc();
     $('route-note').textContent = '';
     $('result').innerHTML = '<div class="empty">Apni location aur dono pickup points daalo.</div>';
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -664,6 +717,39 @@
   }
   $('rs-b').addEventListener('click', function () { resetApp('b'); });
   $('rs-w').addEventListener('click', function () { resetApp('w'); });
+
+  var target = 'bp';
+  function setTarget(id) {
+    target = id;
+    document.querySelectorAll('#pick-seg button').forEach(function (x) { x.classList.toggle('on', x.dataset.id === id); });
+  }
+  $('pick-seg').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button');
+    if (b) setTarget(b.dataset.id);
+  });
+
+  function reverse(id, lat, lng) {
+    fetchJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lng)
+      .then(function (res) {
+        if (!cache[id] || cache[id].lat !== lat) return;
+        $('found-' + id).textContent = '\u2713 ' + (res.display_name || 'Map se chuna');
+      }).catch(function () {
+        if (cache[id] && cache[id].lat === lat) $('found-' + id).textContent = 'Map se chuna \u2713';
+      });
+  }
+
+  function onLongPress(e) {
+    var id = target, lat = e.latlng.lat, lng = e.latlng.lng;
+    cache[id] = { lat: lat, lng: lng };
+    $(id).value = lat.toFixed(6) + ', ' + lng.toFixed(6);
+    $('err-' + id).textContent = '';
+    $('found-' + id).textContent = 'Map se chuna \u2713 (address dhoondh raha hun...)';
+    if (id === 'bd' || id === 'wd') document.querySelector('details').open = true;
+    reverse(id, lat, lng);
+    if (id === 'bp' && !cache.wp) setTarget('wp');
+    else if (id === 'wp' && !cache.bp) setTarget('bp');
+    calc();
+  }
 
   calc();
 })();
