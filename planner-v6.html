@@ -1,0 +1,1000 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Double Drop Planner v6</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  :root {
+    --bg: #f6f7f4;
+    --surface: #ffffff;
+    --ink: #14181b;
+    --muted: #5d676e;
+    --line: #dde1dc;
+    --bolt: #12a150;
+    --wolt: #0b6ef0;
+    --warn: #c0392b;
+    --good: #1c7a4a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101315;
+      --surface: #1a1f22;
+      --ink: #f1f4f2;
+      --muted: #9aa5ab;
+      --line: #2c3337;
+      --bolt: #3ed98d;
+      --wolt: #4da3ff;
+      --warn: #ff7b6b;
+      --good: #4fd790;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.4;
+    padding: 16px 14px 48px;
+    max-width: 520px;
+    margin-inline: auto;
+  }
+  h1 { font-size: 22px; margin: 4px 0 2px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+  section { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  h2 { font-size: 15px; margin: 0 0 10px; font-weight: 700; }
+  .field { margin-bottom: 10px; }
+  .field:last-child { margin-bottom: 0; }
+  .field label { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+  .sq { border-radius: 3px; }
+  .row { display: flex; gap: 8px; }
+  input[type=text], input[type=number] {
+    width: 100%; font: inherit; font-size: 16px; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px;
+  }
+  input:focus-visible, button:focus-visible { outline: 3px solid var(--wolt); outline-offset: 1px; }
+  button {
+    font: inherit; font-weight: 700; font-size: 14px; color: var(--ink);
+    background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 0 14px; cursor: pointer; white-space: nowrap;
+  }
+  button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+  .err { color: var(--warn); font-size: 12.5px; margin-top: 4px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .grid3 .field label { font-size: 12.5px; }
+  details summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+  svg { width: 100%; height: auto; display: block; }
+  svg text { font-family: system-ui, sans-serif; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+  .verdict { font-size: 19px; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 4px; }
+  .pill { display: inline-block; font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 99px; border: 1px solid currentColor; }
+  .pill.good { color: var(--good); }
+  .pill.mid { color: var(--muted); }
+  .pill.bad { color: var(--warn); }
+  .route { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 10px; }
+  .route.best { border-top: 0; padding-top: 0; margin-top: 0; }
+  .route .tot { font-weight: 800; font-size: 16px; }
+  .steps { margin: 6px 0 0; padding: 0; list-style: none; font-size: 14px; }
+  .steps li { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; }
+  .steps .t { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .tag { font-size: 12px; color: var(--muted); }
+  .empty { color: var(--muted); font-size: 14px; }
+  .found { font-size: 12.5px; color: var(--good); margin-top: 4px; word-break: break-word; }
+  .seg { display: flex; gap: 6px; margin: 8px 0 4px; }
+  .seg button { flex: 1; padding: 8px 0; }
+  .seg button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chips button { font-weight: 500; font-size: 13px; padding: 7px 10px; text-align: left; white-space: normal; }
+  input[type=file] { font-size: 14px; width: 100%; }
+  #map { height: 380px; border-radius: 10px; overflow: hidden; background: var(--bg); }
+  .pin { width: 28px; height: 28px; border-radius: 50%; background: var(--c); color: #fff; border: 3px solid #fff;
+    box-shadow: 0 1px 5px rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; font: 800 13px system-ui, sans-serif; }
+  .pin.drop { border-radius: 7px; }
+  .leaflet-container { font-family: system-ui, sans-serif; }
+  .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .head h2 { margin: 0; }
+  .resets { display: flex; gap: 8px; margin-bottom: 14px; }
+  .resets button { flex: 1; padding: 10px 0; border-width: 2px; }
+  .reset { padding: 8px 16px; color: var(--warn); border-color: var(--warn); background: transparent; }
+  .pickseg { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .pickseg button { flex: 1 1 45%; padding: 10px 0; border: 2px solid var(--c); }
+  .pickseg button.on { background: var(--c); color: #fff; }
+  button.live { background: var(--bolt); border-color: var(--bolt); color: #06210f; }
+  .elabel { transform: translate(-50%, -50%); white-space: nowrap; color: #fff; font: 800 12px system-ui, sans-serif;
+    padding: 3px 8px; border-radius: 99px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+  .opts { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; font-size: 14px; }
+  .opts label { display: flex; align-items: center; gap: 8px; }
+  .opts input { width: 18px; height: 18px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; font-weight: 600; margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 22px; height: 0; border-top: 5px solid var(--c); }
+  .legend i.dash { border-top-style: dashed; border-top-width: 4px; }
+  h1 { font-size: 27px; font-weight: 900; }
+  h1 .grad { background: linear-gradient(90deg, var(--bolt), var(--wolt)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  section { box-shadow: 0 2px 12px rgba(0,0,0,.07); border-radius: 18px; }
+  .navbtn { display: block; text-align: center; margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--ink); color: var(--bg);
+    font-weight: 800; font-size: 16px; text-decoration: none; }
+  .num { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--bg);
+    align-items: center; justify-content: center; font-size: 12px; flex: none; }
+  .maplink { display: inline-block; margin-top: 6px; font-size: 12.5px; font-weight: 700; color: var(--wolt); text-decoration: none;
+    border: 1px solid var(--line); border-radius: 99px; padding: 4px 10px; white-space: nowrap; background: var(--bg); }
+  .maplink[hidden] { display: none; }
+  .steps .maplink { margin: 0 0 0 4px; padding: 3px 9px; }
+  #map-wrap { position: relative; }
+  #map-wrap.full { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; flex-direction: column; padding: 8px; }
+  #map-wrap.full #map { flex: 1; height: auto; border-radius: 12px; }
+  #map-wrap.full .pickseg { margin-bottom: 6px; }
+  #map-wrap.full .pickseg button { padding: 8px 0; font-size: 13px; }
+  body.noscroll { overflow: hidden; }
+  .mapbtn { width: 46px; height: 46px; border-radius: 50%; border: 0; background: #fff; color: #14181b; padding: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .leaflet-bottom.leaflet-right .mapbtn { margin: 0 8px 26px 0; }
+  .leaflet-top.leaflet-right .mapbtn { margin: 8px 8px 0 0; }
+  .ver { font-size: 11px; font-weight: 700; border: 1px solid var(--line); border-radius: 99px; padding: 1px 8px; margin-left: 6px; }
+  .smallbtn { padding: 8px 12px; font-size: 13px; }
+  .ctlcol { position: absolute; right: 10px; bottom: 30px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+  .mapbtn[hidden] { display: none; }
+  .mapbtn.small { width: 40px; height: 40px; font-size: 21px; font-weight: 700; }
+  #fs-close { font-size: 20px; font-weight: 700; }
+  .pwrap { position: relative; width: 28px; height: 28px; }
+  .plabel { position: absolute; left: 50%; bottom: 33px; transform: translateX(-50%); white-space: nowrap; color: #fff;
+    font: 700 10px system-ui, sans-serif; padding: 2px 7px; border-radius: 99px; border: 1.5px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+</style>
+</head>
+<body>
+
+<h1><span class="logo">🚴</span> <span class="grad">Double Drop Planner</span></h1>
+<p class="sub">Plan your Bolt + Wolt double orders before you pick them up. <span class="ver">v6</span></p>
+
+<section>
+  <div class="head"><h2>📍 Locations</h2></div>
+  <div class="resets">
+    <button type="button" id="rs-b" style="border-color:var(--bolt)">Reset Bolt</button>
+    <button type="button" id="rs-w" style="border-color:var(--wolt)">Reset Wolt</button>
+    <button id="reset" type="button" class="reset">Reset all</button>
+  </div>
+
+  <div class="field">
+    <label><span class="dot" style="background:var(--ink)"></span>My location</label>
+    <div class="row">
+      <input type="text" id="me" placeholder="lat,lng, link or address" inputmode="text" autocomplete="off">
+      <button id="gps" class="primary" type="button">GPS</button>
+    </div>
+    <div class="err" id="err-me"></div>
+  </div>
+
+  <div class="field">
+    <label><span class="dot" style="background:var(--bolt)"></span>Bolt pickup</label>
+    <input type="text" id="bp" placeholder="lat,lng, link or address" autocomplete="off">
+    <div class="err" id="err-bp"></div>
+  </div>
+
+  <div class="field">
+    <label><span class="dot" style="background:var(--wolt)"></span>Wolt pickup</label>
+    <input type="text" id="wp" placeholder="lat,lng, link or address" autocomplete="off">
+    <div class="err" id="err-wp"></div>
+  </div>
+
+  <div class="field">
+    <details>
+      <summary>Drop locations (optional, for direction check)</summary>
+      <div style="margin-top:10px">
+        <div class="field">
+          <label><span class="dot sq" style="background:var(--bolt)"></span>Bolt drop</label>
+          <input type="text" id="bd" placeholder="lat,lng, link or address" autocomplete="off">
+          <div class="err" id="err-bd"></div>
+        </div>
+        <div class="field">
+          <label><span class="dot sq" style="background:var(--wolt)"></span>Wolt drop</label>
+          <input type="text" id="wd" placeholder="lat,lng, link or address" autocomplete="off">
+          <div class="err" id="err-wd"></div>
+        </div>
+      </div>
+    </details>
+    <div class="hint">Three ways: paste coordinates, paste a long Google Maps link, or type an address and press Enter. Short links (maps.app.goo.gl) do not work.</div>
+  </div>
+</section>
+
+<section id="map-card">
+  <div class="head"><h2>🗺️ Map</h2><button type="button" id="fs-btn" class="smallbtn">⛶ Full screen</button></div>
+  <div class="hint" style="margin:0 0 8px">Pick a point below, then press and hold on the map for 2-3 seconds. Twist with two fingers to rotate the map.</div>
+  <div id="map-wrap">
+  <div class="pickseg" id="pick-seg">
+    <button type="button" data-id="bp" class="on" style="--c:var(--bolt)">Bolt pickup</button>
+    <button type="button" data-id="wp" style="--c:var(--wolt)">Wolt pickup</button>
+    <button type="button" data-id="bd" style="--c:var(--bolt)">Bolt drop</button>
+    <button type="button" data-id="wd" style="--c:var(--wolt)">Wolt drop</button>
+  </div>
+  <div id="map"></div>
+  <div class="ctlcol">
+    <button type="button" id="fs-close" class="mapbtn" hidden aria-label="Close full screen">✕</button>
+    <button type="button" id="rot-r" class="mapbtn small" aria-label="Rotate right">↻</button>
+    <button type="button" id="rot-l" class="mapbtn small" aria-label="Rotate left">↺</button>
+    <button type="button" id="loc-btn" class="mapbtn" aria-label="My location"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.6" fill="currentColor"/><circle cx="12" cy="12" r="8"/><path d="M12 1.5v3.5M12 19v3.5M1.5 12H5M19 12h3.5"/></svg></button>
+  </div>
+  </div>
+  <div class="legend">
+    <span style="--c:var(--bolt)"><i></i>Bolt</span>
+    <span style="--c:var(--wolt)"><i></i>Wolt</span>
+    <span style="--c:#e5322d"><i class="dash"></i>Bolt ↔ Wolt</span>
+  </div>
+  <div class="opts">
+    <label><input type="checkbox" id="x-cross" checked> Show every distance (all points to all points)</label>
+    <label><input type="checkbox" id="x-best"> Show full route (orange)</label>
+    <label><input type="checkbox" id="x-num"> Show order numbers on pins</label>
+  </div>
+  <div class="hint">The km on each line is the shortest road distance. Numbers show the order to go.</div>
+  <div class="hint" id="route-note"></div>
+</section>
+
+<section>
+  <h2>📸 Read from screenshot</h2>
+  <div class="hint" style="margin:0 0 10px">Upload a Bolt or Wolt order screenshot. The text it reads shows below. Tap a line to use it as Pickup or Drop.</div>
+  <div class="field">
+    <label><span class="dot" style="background:var(--bolt)"></span>Bolt screenshot</label>
+    <input type="file" accept="image/*" id="ss-b">
+    <div class="seg" data-app="b"><button type="button" data-t="p" class="on">Pickup</button><button type="button" data-t="d">Drop</button></div>
+    <div class="hint" id="st-b"></div>
+    <div class="chips" id="chips-b"></div>
+  </div>
+  <div class="field">
+    <label><span class="dot" style="background:var(--wolt)"></span>Wolt screenshot</label>
+    <input type="file" accept="image/*" id="ss-w">
+    <div class="seg" data-app="w"><button type="button" data-t="p" class="on">Pickup</button><button type="button" data-t="d">Drop</button></div>
+    <div class="hint" id="st-w"></div>
+    <div class="chips" id="chips-w"></div>
+  </div>
+</section>
+
+<section>
+  <h2>⚙️ Settings</h2>
+  <div class="grid3">
+    <div class="field">
+      <label for="speed">Speed km/h</label>
+      <input type="number" id="speed" value="18" min="5" max="60" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label for="road">Road factor</label>
+      <input type="number" id="road" value="1.3" min="1" max="2" step="0.05" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label for="stop">Pickup wait (min)</label>
+      <input type="number" id="stop" value="4" min="0" max="30" inputmode="decimal">
+    </div>
+  </div>
+  <div class="hint">Road factor: only used when the route server is down. It stretches the straight line to estimate road distance (1.3 = 30% longer).</div>
+</section>
+
+
+
+<section id="result-card">
+  <h2>✅ Your plan</h2>
+  <div id="result"><div class="empty">Add your location and both pickup points.</div></div>
+</section>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js"></script>
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var ids = ['me', 'bp', 'wp', 'bd', 'wd'];
+  var NAMES = { me: 'Main', bp: 'Bolt pickup', wp: 'Wolt pickup', bd: 'Bolt drop', wd: 'Wolt drop' };
+  var cache = {};
+  var COLORS = { me: 'var(--ink)', bp: 'var(--bolt)', wp: 'var(--wolt)', bd: 'var(--bolt)', wd: 'var(--wolt)' };
+
+  function parseLoc(s) {
+    s = (s || '').trim();
+    if (!s) return null;
+    var m;
+    try { s = decodeURIComponent(s); } catch (e) {}
+    m = s.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/);
+    if (!m) m = s.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/);
+    if (!m) m = s.match(/[?&](?:q|ll|query|destination)=(-?\d+(?:\.\d+)?)[,+ ]\s*(-?\d+(?:\.\d+)?)/);
+    if (!m) m = s.match(/(-?\d{1,3}\.\d+)\s*[,;\s]\s*(-?\d{1,3}\.\d+)/);
+    if (!m) return 'text';
+    var lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return 'bad';
+    return { lat: lat, lng: lng };
+  }
+
+  function hav(a, b) {
+    var R = 6371, rad = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+
+  function bearing(a, b) {
+    var rad = Math.PI / 180;
+    var y = (b.lng - a.lng) * Math.cos(a.lat * rad);
+    var x = b.lat - a.lat;
+    return Math.atan2(y, x) / rad;
+  }
+
+  function fmtKm(k) { return k < 1 ? Math.round(k * 1000) + ' m' : k.toFixed(2) + ' km'; }
+  function fmtMin(m) { return Math.round(m) + ' min'; }
+
+  function num(id, def) {
+    var v = parseFloat($(id).value);
+    return isFinite(v) && v > 0 ? v : def;
+  }
+
+  function perms(arr) {
+    if (arr.length <= 1) return [arr];
+    var out = [];
+    arr.forEach(function (x, i) {
+      perms(arr.slice(0, i).concat(arr.slice(i + 1))).forEach(function (p) { out.push([x].concat(p)); });
+    });
+    return out;
+  }
+
+  var BIKE = 'https://routing.openstreetmap.de/routed-bike';
+  var CAR = 'https://router.project-osrm.org';
+  var HEX = { me: '#14181b', bp: '#12a150', wp: '#0b6ef0', bd: '#12a150', wd: '#0b6ef0' };
+  var EDGE = { bolt: '#12a150', wolt: '#0b6ef0', red: '#e5322d' };
+  var matCache = {}, calcToken = 0, calcTimer = null, map = null, layer = null;
+
+  function coordStr(P, keys) {
+    return keys.map(function (k) { return P[k].lng.toFixed(6) + ',' + P[k].lat.toFixed(6); }).join(';');
+  }
+
+  function fetchJson(url) {
+    var c = new AbortController();
+    var t = setTimeout(function () { c.abort(); }, 10000);
+    return fetch(url, { signal: c.signal }).then(function (r) {
+      clearTimeout(t);
+      if (!r.ok) throw new Error('http');
+      return r.json();
+    });
+  }
+
+  function getMatrix(P, keys) {
+    var cs = coordStr(P, keys);
+    if (matCache[cs]) return Promise.resolve(matCache[cs]);
+    function tryBase(base) {
+      return fetchJson(base + '/table/v1/driving/' + cs + '?annotations=distance').then(function (res) {
+        if (res.code !== 'Ok' || !res.distances) throw new Error('bad');
+        var M = {};
+        keys.forEach(function (a, i) {
+          M[a] = {};
+          keys.forEach(function (b, j) {
+            var v = res.distances[i][j];
+            if (v === null || v === undefined) throw new Error('null');
+            M[a][b] = v / 1000;
+          });
+        });
+        return { M: M, src: base === BIKE ? 'cycle' : 'car' };
+      });
+    }
+    return tryBase(BIKE).catch(function () { return tryBase(CAR); }).catch(function () {
+      var road = num('road', 1.3), M = {};
+      keys.forEach(function (a) {
+        M[a] = {};
+        keys.forEach(function (b) { M[a][b] = hav(P[a], P[b]) * road; });
+      });
+      return { M: M, src: 'est' };
+    }).then(function (r) { matCache[cs] = r; return r; });
+  }
+
+  function getRoute(P, wps, src) {
+    var cs = coordStr(P, wps);
+    function one(base) {
+      return fetchJson(base + '/route/v1/driving/' + cs + '?overview=full&geometries=geojson').then(function (res) {
+        if (res.code !== 'Ok' || !res.routes.length) throw new Error('bad');
+        return res.routes[0].geometry.coordinates.map(function (c) { return [c[1], c[0]]; });
+      });
+    }
+    if (src === 'car') return one(CAR);
+    return one(BIKE).catch(function () { return one(CAR); });
+  }
+
+  function greedy(D, hasDrops) {
+    var left = hasDrops ? ['bp', 'wp', 'bd', 'wd'] : ['bp', 'wp'], seq = [], prev = 'me';
+    while (left.length) {
+      var cand = left.filter(function (k) {
+        if (k === 'bd') return seq.indexOf('bp') > -1;
+        if (k === 'wd') return seq.indexOf('wp') > -1;
+        return true;
+      });
+      var pick = cand.reduce(function (a, b) { return D[prev][b] < D[prev][a] ? b : a; });
+      seq.push(pick);
+      left.splice(left.indexOf(pick), 1);
+      prev = pick;
+    }
+    return seq;
+  }
+
+  function mapDirUrl(p) {
+    return 'https://www.google.com/maps/dir/?api=1&travelmode=bicycling&destination=' + p.lat.toFixed(6) + ',' + p.lng.toFixed(6);
+  }
+
+  function mapPinUrl(p) {
+    return 'https://www.google.com/maps/search/?api=1&query=' + p.lat.toFixed(6) + ',' + p.lng.toFixed(6);
+  }
+
+  function navUrl(P, seq) {
+    var pts = seq.map(function (k) { return P[k].lat.toFixed(6) + ',' + P[k].lng.toFixed(6); });
+    var u = 'https://www.google.com/maps/dir/?api=1&travelmode=bicycling&destination=' + pts[pts.length - 1];
+    if (pts.length > 1) u += '&waypoints=' + encodeURIComponent(pts.slice(0, -1).join('|'));
+    return u;
+  }
+
+  function evaluate(seq, D, speed, stop) {
+    var t = 0, km = 0, prev = 'me', steps = [], arrive = {};
+    seq.forEach(function (k) {
+      var d = D[prev][k];
+      km += d;
+      t += d / speed * 60;
+      arrive[k] = t;
+      steps.push({ key: k, d: d, t: t });
+      if (k === 'bp' || k === 'wp') t += stop;
+      prev = k;
+    });
+    return { seq: seq, km: km, min: steps[steps.length - 1].t, steps: steps, arrive: arrive };
+  }
+
+  function ensureMap() {
+    if (map) return;
+    try {
+      map = L.map('map', { rotate: true, touchRotate: true, bearing: 0, rotateControl: { closeOnZeroBearing: false } });
+    } catch (err) {
+      map = L.map('map');
+    }
+    if (!map.setBearing) { $('rot-l').hidden = true; $('rot-r').hidden = true; }
+    map.setView([44.4268, 26.1025], 12);
+    map.on('contextmenu', function (e) { onLongPress(e); });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '&copy; OpenStreetMap'
+    }).addTo(map);
+    layer = L.layerGroup().addTo(map);
+    edgeLayer = L.layerGroup().addTo(map);
+  }
+
+  var lastFit = null, meCentered = false;
+
+  function drawMap(P, keys, best, line) {
+    if (typeof L === 'undefined') {
+      $('map').innerHTML = '<div class="empty" style="padding:14px">Map did not load. Check your internet and reload the page.</div>';
+      return;
+    }
+    ensureMap();
+    map.invalidateSize();
+    layer.clearLayers();
+    var order = {};
+    if (best) best.seq.forEach(function (k, i) { order[k] = i + 1; });
+    var showBest = $('x-best').checked;
+    if (best && showBest && line) {
+      L.polyline(line, { color: '#ff6b00', weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round' }).addTo(layer);
+    } else if (best && showBest) {
+      var pts = [P.me].concat(best.seq.map(function (k) { return P[k]; })).map(function (p) { return [p.lat, p.lng]; });
+      L.polyline(pts, { color: '#ff6b00', weight: 4, dashArray: '8 8' }).addTo(layer);
+    }
+    keys.forEach(function (k) {
+      var isDrop = (k === 'bd' || k === 'wd');
+      var txt = (k !== 'me' && $('x-num').checked) ? (order[k] || '') : '';
+      var html = '<div class="pwrap"><div class="plabel" style="background:' + HEX[k] + '">' + (k === 'me' ? 'You' : NAMES[k]) + '</div>' +
+        '<div class="pin' + (isDrop ? ' drop' : '') + '" style="--c:' + HEX[k] + '">' + txt + '</div></div>';
+      L.marker([P[k].lat, P[k].lng], {
+        icon: L.divIcon({ className: '', html: html, iconSize: [28, 28], iconAnchor: [14, 14] })
+      }).addTo(layer).bindTooltip(NAMES[k], { direction: 'top', offset: [0, -12] })
+        .bindPopup('<b>' + NAMES[k] + '</b><br><a href="' + (k === 'me' ? mapPinUrl(P[k]) : mapDirUrl(P[k])) + '" target="_blank" rel="noopener">Open in Google Maps</a>');
+    });
+    if (!P.me) meCentered = false;
+    var fitKey = keys.filter(function (k) { return k !== 'me'; }).map(function (k) {
+      return k + P[k].lat.toFixed(5) + P[k].lng.toFixed(5);
+    }).join('|');
+    if (fitKey !== lastFit || (!meCentered && P.me)) {
+      lastFit = fitKey;
+      if (P.me) meCentered = true;
+      var b = keys.map(function (k) { return [P[k].lat, P[k].lng]; });
+      if (line) b = b.concat(line);
+      if (b.length > 1) map.fitBounds(b, { padding: [30, 30] });
+      else if (b.length === 1) map.setView(b[0], 15);
+    }
+    drawEdges(P);
+  }
+
+  var edgeLayer = null, edgeToken = 0, edgeCache = {};
+
+  function fmtKm1(k) { return k < 1 ? Math.round(k * 1000) + ' m' : k.toFixed(1) + ' km'; }
+
+  function edgeDefs(P) {
+    var d = [];
+    function add(a, b, col) { if (P[a] && P[b]) d.push({ a: a, b: b, col: col }); }
+    add('bp', 'wp', 'red');
+    add('bd', 'wd', 'red');
+    if ($('x-cross').checked) {
+      add('bp', 'wd', 'red'); add('wp', 'bd', 'red');
+      add('me', 'bd', 'bolt'); add('me', 'wd', 'wolt');
+    }
+    add('me', 'bp', 'bolt');
+    add('bp', 'bd', 'bolt');
+    add('me', 'wp', 'wolt');
+    add('wp', 'wd', 'wolt');
+    return d;
+  }
+
+  function getEdge(P, a, b) {
+    var cs = coordStr(P, [a, b]);
+    if (edgeCache[cs]) return edgeCache[cs];
+    if (Object.keys(edgeCache).length > 80) edgeCache = {};
+    function one(base) {
+      return fetchJson(base + '/route/v1/driving/' + cs + '?overview=full&geometries=geojson').then(function (res) {
+        if (res.code !== 'Ok' || !res.routes.length) throw new Error('bad');
+        var r = res.routes[0];
+        return { pts: r.geometry.coordinates.map(function (c) { return [c[1], c[0]]; }), km: r.distance / 1000, est: false };
+      });
+    }
+    var pr = one(BIKE).catch(function () { return one(CAR); }).catch(function () {
+      return {
+        pts: [[P[a].lat, P[a].lng], [P[b].lat, P[b].lng]],
+        km: hav(P[a], P[b]) * num('road', 1.3), est: true
+      };
+    });
+    edgeCache[cs] = pr;
+    pr.then(function (r) { if (r.est) delete edgeCache[cs]; });
+    return pr;
+  }
+
+  function midPoint(pts) {
+    var cum = [0], i;
+    for (i = 1; i < pts.length; i++) {
+      cum.push(cum[i - 1] + hav({ lat: pts[i - 1][0], lng: pts[i - 1][1] }, { lat: pts[i][0], lng: pts[i][1] }));
+    }
+    var half = cum[cum.length - 1] / 2;
+    for (i = 0; i < pts.length; i++) { if (cum[i] >= half) return pts[i]; }
+    return pts[pts.length - 1];
+  }
+
+  function drawEdges(P) {
+    if (typeof L === 'undefined' || !map || !edgeLayer) return;
+    var tk = ++edgeToken, defs = edgeDefs(P);
+    if (!defs.length) { edgeLayer.clearLayers(); return; }
+    Promise.all(defs.map(function (d) {
+      return getEdge(P, d.a, d.b).then(function (e) { return { d: d, e: e }; });
+    })).then(function (list) {
+      if (tk !== edgeToken) return;
+      edgeLayer.clearLayers();
+      list.sort(function (x, y) { return (x.d.col === 'red' ? 0 : 1) - (y.d.col === 'red' ? 0 : 1); });
+      var anyEst = false;
+      list.forEach(function (it) {
+        var red = it.d.col === 'red', col = EDGE[it.d.col];
+        if (it.e.est) anyEst = true;
+        L.polyline(it.e.pts, {
+          color: col, weight: red ? 4 : 6, opacity: 0.9, dashArray: red ? '10 8' : null
+        }).addTo(edgeLayer);
+        L.marker(midPoint(it.e.pts), {
+          interactive: false,
+          icon: L.divIcon({ className: '', html: '<div class="elabel" style="background:' + col + '">' + fmtKm1(it.e.km) + '</div>', iconSize: [0, 0] })
+        }).addTo(edgeLayer);
+      });
+      var note = $('route-note');
+      if (anyEst) note.textContent = 'Route server not reachable for some lines. Those are straight-line estimates.';
+      else if (note.textContent.indexOf('not reachable') > -1) note.textContent = '';
+    });
+  }
+
+  function drawPartial(P) {
+    drawMap(P, ids.filter(function (id) { return P[id]; }), null, null);
+  }
+
+  function seqText(r) {
+    return r.seq.map(function (k) { return NAMES[k]; }).join(' \u2192 ');
+  }
+
+  function stepsHtml(r, P) {
+    var h = '<ul class="steps">';
+    r.steps.forEach(function (s, i) {
+      h += '<li><b class="num">' + (i + 1) + '</b><span class="dot ' + ((s.key === 'bd' || s.key === 'wd') ? 'sq' : '') + '" style="background:' + COLORS[s.key] + '"></span>' +
+        '<span>' + NAMES[s.key] + ' <span class="tag">(' + fmtKm(s.d) + ')</span></span>' +
+        '<span class="t">' + fmtMin(s.t) + '</span>' +
+        '<a class="maplink" href="' + mapDirUrl(P[s.key]) + '" target="_blank" rel="noopener">\uD83D\uDDFA\uFE0F Map</a></li>';
+    });
+    return h + '</ul>';
+  }
+
+  function calc() {
+    clearTimeout(calcTimer);
+    calcTimer = setTimeout(run, 350);
+  }
+
+  function run() {
+    var token = ++calcToken;
+    var P = {};
+    ids.forEach(function (id) { if (cache[id]) P[id] = cache[id]; });
+    updateLinks(P);
+    var result = $('result'), mapCard = $('map-card');
+    if (!P.me || !P.bp || !P.wp) {
+      $('route-note').textContent = '';
+      drawPartial(P);
+      result.innerHTML = '<div class="empty">Add your location and both pickups, or press and hold on the map.</div>';
+      return;
+    }
+    if (P.bd && !P.wd) delete P.bd;
+    if (P.wd && !P.bd) delete P.wd;
+    var hasDrops = !!(P.bd && P.wd);
+    var keys = ['me', 'bp', 'wp'];
+    if (hasDrops) keys.push('bd', 'wd');
+    var speed = num('speed', 18);
+    var stopEl = parseFloat($('stop').value);
+    var stop = isFinite(stopEl) && stopEl >= 0 ? stopEl : 4;
+
+    mapCard.hidden = false;
+    result.innerHTML = '<div class="empty">Finding the real road route...</div>';
+
+    getMatrix(P, keys).then(function (mx) {
+      if (token !== calcToken) return;
+      var D = mx.M;
+      var routes = hasDrops
+        ? perms(['bp', 'wp', 'bd', 'wd']).filter(function (p) {
+            return p.indexOf('bp') < p.indexOf('bd') && p.indexOf('wp') < p.indexOf('wd');
+          })
+        : [['bp', 'wp'], ['wp', 'bp']];
+      var evals = routes.map(function (sq) { return evaluate(sq, D, speed, stop); })
+        .sort(function (a, b) { return a.min - b.min; });
+      var fastest = evals[0];
+      var best = evaluate(greedy(D, hasDrops), D, speed, stop);
+
+      var pp = D.bp.wp;
+      var closeCls = pp < 0.6 ? 'good' : (pp < 1.5 ? 'mid' : 'bad');
+      var closeTxt = pp < 0.6 ? 'Pickups are close, double order looks good' :
+                     (pp < 1.5 ? 'Pickups are a medium distance apart' : 'Pickups are far apart, think twice');
+
+      function tri(a, b) {
+        return '<li><span>' + NAMES[a] + ' \u2192 ' + NAMES[b] + '</span><span class="t">' +
+          fmtKm(D[a][b]) + ' \u00b7 ' + fmtMin(D[a][b] / speed * 60) + '</span></li>';
+      }
+
+      var h = '<div class="route best">';
+      h += '<div class="tag">Go in this order (nearest first)</div><p class="verdict">' + seqText(best) + '</p>';
+      h += '<div class="tot">' + fmtKm(best.km) + ' \u00b7 ' + fmtMin(best.min) + '</div>';
+      h += stepsHtml(best, P);
+      h += '<a class="navbtn" href="' + navUrl(P, best.seq) + '" target="_blank" rel="noopener">\uD83E\uDDED Navigate in Google Maps</a>';
+      if (fastest.seq.join() !== best.seq.join() && fastest.min < best.min - 1) {
+        h += '<div class="hint" style="margin-top:8px">Fastest total: ' + seqText(fastest) + ' \u00b7 ' + fmtMin(fastest.min) +
+          ' (saves ' + fmtMin(best.min - fastest.min) + ')</div>';
+      }
+      h += '</div>';
+
+      h += '<div class="route"><div class="tag">Triangle (real road distance)</div><ul class="steps">' +
+        tri('me', 'bp') + tri('me', 'wp') + tri('bp', 'wp') + '</ul>' +
+        '<div style="margin-top:8px"><span class="pill ' + closeCls + '">' + closeTxt + '</span></div></div>';
+
+      if (hasDrops) {
+        var mid = { lat: (P.bp.lat + P.wp.lat) / 2, lng: (P.bp.lng + P.wp.lng) / 2 };
+        var diff = Math.abs(bearing(mid, P.bd) - bearing(mid, P.wd));
+        if (diff > 180) diff = 360 - diff;
+        var dd = D.bd.wd, opp = diff > 110;
+        h += '<div class="route"><span class="pill ' + (opp ? 'bad' : (diff > 60 ? 'mid' : 'good')) + '">' +
+          (opp ? 'Drops are in opposite directions' : (diff > 60 ? 'Drops are in somewhat different directions' : 'Drops are in the same direction')) + '</span>';
+        h += '<div class="hint" style="margin-top:8px">Bolt drop to Wolt drop: <b>' + fmtKm(dd) + '</b> \u00b7 <b>' + fmtMin(dd / speed * 60) + '</b></div>';
+        h += '<div class="hint">In this route, Bolt drop at <b>' + fmtMin(best.arrive.bd) + '</b>, Wolt drop at <b>' + fmtMin(best.arrive.wd) + '</b>.</div></div>';
+      }
+
+      if (evals.length > 1) {
+        h += '<div class="route"><details><summary>Other routes</summary>';
+        evals.slice(1).forEach(function (r) {
+          h += '<div class="route"><div class="tot">' + fmtKm(r.km) + ' \u00b7 ' + fmtMin(r.min) +
+            ' <span class="tag">(+' + fmtMin(r.min - best.min) + ')</span></div><div class="tag">' + seqText(r) + '</div></div>';
+        });
+        h += '</details></div>';
+      }
+      result.innerHTML = h;
+
+      var note = $('route-note');
+      note.textContent = mx.src === 'cycle' ? 'Distances use real roads (bike route).' :
+        mx.src === 'car' ? 'Distances use car roads (bike route server not reachable).' :
+        'Route server not reachable, so these are straight-line estimates.';
+
+      drawMap(P, keys, best, null);
+      if ($('x-best').checked) {
+        getRoute(P, ['me'].concat(best.seq), mx.src).then(function (line) { return line; }, function () { return null; })
+          .then(function (line) {
+            if (token !== calcToken) return;
+            if (line) drawMap(P, keys, best, line);
+          });
+      }
+    });
+  }
+
+  ids.forEach(function (id) {
+    var f = document.createElement('div');
+    f.className = 'found'; f.id = 'found-' + id;
+    $('err-' + id).parentNode.insertBefore(f, $('err-' + id));
+  });
+
+  function isPt(r) { return r && typeof r === 'object'; }
+
+  function geocode(id, q) {
+    var f = $('found-' + id), e = $('err-' + id);
+    f.textContent = 'Searching...'; e.textContent = '';
+    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(q);
+    if (cache.me && id !== 'me') {
+      var d = 0.25, m = cache.me;
+      url += '&viewbox=' + (m.lng - d) + ',' + (m.lat + d) + ',' + (m.lng + d) + ',' + (m.lat - d);
+    }
+    fetch(url, { headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        if ($(id).value.trim() !== q) return;
+        if (!res.length) {
+          f.textContent = '';
+          e.textContent = 'Address not found. Add street, number and city, then try again.';
+          return;
+        }
+        cache[id] = { lat: parseFloat(res[0].lat), lng: parseFloat(res[0].lon) };
+        f.textContent = '\u2713 ' + res[0].display_name;
+        calc();
+      })
+      .catch(function () {
+        f.textContent = '';
+        e.textContent = 'Search failed. Check your internet or paste coordinates.';
+      });
+  }
+
+  function onInput(id) {
+    var r = parseLoc($(id).value);
+    $('err-' + id).textContent = '';
+    $('found-' + id).textContent = '';
+    if (isPt(r)) { cache[id] = r; $('found-' + id).textContent = 'Coordinates \u2713'; }
+    else {
+      delete cache[id];
+      if (r === 'bad') $('err-' + id).textContent = 'Invalid coordinates.';
+    }
+    calc();
+  }
+
+  function onCommit(id) {
+    var raw = $(id).value.trim();
+    if (!cache[id] && raw.length >= 3 && parseLoc(raw) === 'text') geocode(id, raw);
+  }
+
+  ids.forEach(function (id) {
+    $(id).addEventListener('input', function () { onInput(id); });
+    $(id).addEventListener('change', function () { onCommit(id); });
+  });
+  ['speed', 'road', 'stop'].forEach(function (id) { $(id).addEventListener('input', calc); });
+
+  var centerNext = false, watchId = null, lastMe = null, liveTimer = null, lastCalcAt = 0;
+
+  function stopLive() {
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    clearTimeout(liveTimer);
+    $('gps').textContent = 'GPS';
+    $('gps').classList.remove('live');
+  }
+
+  function liveCalc() {
+    var wait = Math.max(0, 8000 - (Date.now() - lastCalcAt));
+    clearTimeout(liveTimer);
+    liveTimer = setTimeout(function () { lastCalcAt = Date.now(); calc(); }, wait);
+  }
+
+  $('me').addEventListener('input', stopLive);
+
+  $('gps').addEventListener('click', function () {
+    var e = $('err-me');
+    e.textContent = '';
+    if (watchId !== null) { stopLive(); $('found-me').textContent = 'Live tracking stopped.'; return; }
+    if (!navigator.geolocation) { e.textContent = 'This browser has no GPS.'; return; }
+    $('gps').textContent = 'Live \u25cf';
+    $('gps').classList.add('live');
+    watchId = navigator.geolocation.watchPosition(function (pos) {
+      var c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      if (centerNext) {
+        centerNext = false;
+        meCentered = true;
+        if (map) map.setView([c.lat, c.lng], Math.max(map.getZoom(), 16));
+      }
+      $('found-me').textContent = 'Live \u2713 (\u00b1' + Math.round(pos.coords.accuracy) + ' m)';
+      if (cache.me && lastMe && hav(lastMe, c) < 0.02) return;
+      lastMe = c;
+      cache.me = c;
+      $('me').value = c.lat.toFixed(6) + ', ' + c.lng.toFixed(6);
+      liveCalc();
+    }, function () {
+      stopLive();
+      e.textContent = 'Could not get GPS. Turn on location permission for this site.';
+    }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+  });
+
+  var mode = { b: 'p', w: 'p' };
+  document.querySelectorAll('.seg').forEach(function (seg) {
+    seg.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button');
+      if (!b) return;
+      mode[seg.dataset.app] = b.dataset.t;
+      seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x === b); });
+    });
+  });
+
+  function looksAddr(s) {
+    return /\d|str\b|strada|bd\.?|bulevard|calea|sos|\u0219os|aleea|intr|nr\b|road|street|lane|colony|block|chowk|market/i.test(s);
+  }
+
+  function showChips(app, text) {
+    var seen = {}, lines = text.split('\n').map(function (l) { return l.replace(/\s+/g, ' ').trim(); })
+      .filter(function (l) { return l.length >= 5 && /[A-Za-z\u0100-\u024f]{3}/.test(l) && !seen[l] && (seen[l] = 1); });
+    var good = lines.filter(looksAddr), rest = lines.filter(function (l) { return !looksAddr(l); });
+    var all = good.concat(rest).slice(0, 14);
+    var box = $('chips-' + app), st = $('st-' + app);
+    box.innerHTML = '';
+    if (!all.length) { st.textContent = 'Nothing could be read. Try a clearer screenshot or type the address.'; return; }
+    st.textContent = 'Tap a line to use it. Choose Pickup or Drop with the buttons above.';
+    all.forEach(function (line) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.textContent = line;
+      b.addEventListener('click', function () {
+        var id = app + (mode[app] === 'p' ? 'p' : 'd');
+        if (id === 'bd' || id === 'wd') document.querySelector('details').open = true;
+        $(id).value = line;
+        onInput(id);
+        onCommit(id);
+        $(id).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function ocr(app, file) {
+    var st = $('st-' + app);
+    $('chips-' + app).innerHTML = '';
+    if (typeof Tesseract === 'undefined') {
+      st.textContent = 'Text reader did not load. Check your internet and reload the page.';
+      return;
+    }
+    st.textContent = 'Reading screenshot... 0%';
+    Tesseract.createWorker('ron+eng', 1, {
+      logger: function (m) {
+        if (m.status === 'recognizing text') st.textContent = 'Reading screenshot... ' + Math.round(m.progress * 100) + '%';
+      }
+    }).then(function (w) {
+      return w.recognize(file).then(function (res) {
+        return w.terminate().then(function () { return res; });
+      });
+    }).then(function (res) {
+      showChips(app, res.data.text || '');
+    }).catch(function () {
+      st.textContent = 'Could not read it. Try again or type the address.';
+    });
+  }
+
+  $('ss-b').addEventListener('change', function () { if (this.files[0]) ocr('b', this.files[0]); });
+  $('ss-w').addEventListener('change', function () { if (this.files[0]) ocr('w', this.files[0]); });
+
+  $('reset').addEventListener('click', function () {
+    clearTimeout(calcTimer);
+    calcToken++;
+    ids.forEach(function (id) {
+      $(id).value = '';
+      delete cache[id];
+      $('found-' + id).textContent = '';
+      $('err-' + id).textContent = '';
+    });
+    ['b', 'w'].forEach(function (app) {
+      $('ss-' + app).value = '';
+      $('chips-' + app).innerHTML = '';
+      $('st-' + app).textContent = '';
+      mode[app] = 'p';
+    });
+    document.querySelectorAll('.seg').forEach(function (seg) {
+      seg.querySelectorAll('button').forEach(function (x) { x.classList.toggle('on', x.dataset.t === 'p'); });
+    });
+    stopLive();
+    lastFit = null;
+    meCentered = false;
+    calc();
+    $('route-note').textContent = '';
+    $('result').innerHTML = '<div class="empty">Add your location and both pickup points.</div>';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  function resetApp(app) {
+    var list = [app + 'p', app + 'd'];
+    list.forEach(function (id) {
+      $(id).value = '';
+      delete cache[id];
+      $('found-' + id).textContent = '';
+      $('err-' + id).textContent = '';
+    });
+    $('ss-' + app).value = '';
+    $('chips-' + app).innerHTML = '';
+    $('st-' + app).textContent = '';
+    mode[app] = 'p';
+    document.querySelector('.seg[data-app="' + app + '"]').querySelectorAll('button').forEach(function (x) {
+      x.classList.toggle('on', x.dataset.t === 'p');
+    });
+    calc();
+  }
+  $('rs-b').addEventListener('click', function () { resetApp('b'); });
+  $('rs-w').addEventListener('click', function () { resetApp('w'); });
+
+  var isFull = false;
+
+  function toggleFull() {
+    isFull = !isFull;
+    $('map-wrap').classList.toggle('full', isFull);
+    document.body.classList.toggle('noscroll', isFull);
+    $('fs-close').hidden = !isFull;
+    setTimeout(function () { if (map) map.invalidateSize(); }, 150);
+  }
+
+  function locateMe() {
+    meCentered = true;
+    if (map && cache.me) map.setView([cache.me.lat, cache.me.lng], Math.max(map.getZoom(), 16));
+    if (watchId === null) { centerNext = true; $('gps').click(); }
+  }
+
+  function rotateBy(d) {
+    if (map && map.setBearing) map.setBearing(((map.getBearing() || 0) + d + 360) % 360);
+  }
+
+  $('fs-btn').addEventListener('click', toggleFull);
+  $('fs-close').addEventListener('click', toggleFull);
+  $('loc-btn').addEventListener('click', locateMe);
+  $('rot-l').addEventListener('click', function () { rotateBy(-45); });
+  $('rot-r').addEventListener('click', function () { rotateBy(45); });
+
+  ['x-cross', 'x-best', 'x-num'].forEach(function (id) { $(id).addEventListener('change', calc); });
+
+  var target = 'bp';
+  function setTarget(id) {
+    target = id;
+    document.querySelectorAll('#pick-seg button').forEach(function (x) { x.classList.toggle('on', x.dataset.id === id); });
+  }
+  $('pick-seg').addEventListener('click', function (ev) {
+    var b = ev.target.closest('button');
+    if (b) setTarget(b.dataset.id);
+  });
+
+  function reverse(id, lat, lng) {
+    fetchJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lng)
+      .then(function (res) {
+        if (!cache[id] || cache[id].lat !== lat) return;
+        $('found-' + id).textContent = '\u2713 ' + (res.display_name || 'Picked on map');
+      }).catch(function () {
+        if (cache[id] && cache[id].lat === lat) $('found-' + id).textContent = 'Picked on map \u2713';
+      });
+  }
+
+  function onLongPress(e) {
+    var id = target, lat = e.latlng.lat, lng = e.latlng.lng;
+    cache[id] = { lat: lat, lng: lng };
+    $(id).value = lat.toFixed(6) + ', ' + lng.toFixed(6);
+    $('err-' + id).textContent = '';
+    $('found-' + id).textContent = 'Picked on map \u2713 (looking up address...)';
+    if (id === 'bd' || id === 'wd') document.querySelector('details').open = true;
+    reverse(id, lat, lng);
+    if (id === 'bp' && !cache.wp) setTarget('wp');
+    else if (id === 'wp' && !cache.bp) setTarget('bp');
+    calc();
+  }
+
+  ids.forEach(function (id) {
+    var a = document.createElement('a');
+    a.className = 'maplink'; a.id = 'link-' + id; a.target = '_blank'; a.rel = 'noopener'; a.hidden = true;
+    $('err-' + id).parentNode.insertBefore(a, $('err-' + id));
+  });
+
+  function updateLinks(P) {
+    ids.forEach(function (id) {
+      var a = $('link-' + id);
+      if (P[id]) {
+        a.href = id === 'me' ? mapPinUrl(P[id]) : mapDirUrl(P[id]);
+        a.textContent = id === 'me' ? '\uD83D\uDDFA\uFE0F Show on map' : '\uD83D\uDDFA\uFE0F Open route in Google Maps';
+        a.hidden = false;
+      } else {
+        a.hidden = true;
+      }
+    });
+  }
+
+  calc();
+})();
+</script>
+</body>
+</html>
