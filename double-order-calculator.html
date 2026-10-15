@@ -122,6 +122,16 @@
     border: 1px solid var(--line); border-radius: 99px; padding: 4px 10px; white-space: nowrap; background: var(--bg); }
   .maplink[hidden] { display: none; }
   .steps .maplink { margin: 0 0 0 4px; padding: 3px 9px; }
+  #map-wrap { position: relative; }
+  #map-wrap.full { position: fixed; inset: 0; z-index: 9999; background: var(--bg); display: flex; flex-direction: column; padding: 8px; }
+  #map-wrap.full #map { flex: 1; height: auto; border-radius: 12px; }
+  #map-wrap.full .pickseg { margin-bottom: 6px; }
+  #map-wrap.full .pickseg button { padding: 8px 0; font-size: 13px; }
+  body.noscroll { overflow: hidden; }
+  .mapbtn { width: 46px; height: 46px; border-radius: 50%; border: 0; background: #fff; color: #14181b; padding: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .leaflet-bottom.leaflet-right .mapbtn { margin: 0 8px 26px 0; }
+  .leaflet-top.leaflet-right .mapbtn { margin: 8px 8px 0 0; }
 </style>
 </head>
 <body>
@@ -180,21 +190,23 @@
 
 <section id="map-card">
   <h2>🗺️ Map</h2>
+  <div class="hint" style="margin:0 0 8px">Pick a point below, then press and hold on the map for 2-3 seconds. Twist with two fingers to rotate the map.</div>
+  <div id="map-wrap">
   <div class="pickseg" id="pick-seg">
     <button type="button" data-id="bp" class="on" style="--c:var(--bolt)">Bolt pickup</button>
     <button type="button" data-id="wp" style="--c:var(--wolt)">Wolt pickup</button>
     <button type="button" data-id="bd" style="--c:var(--bolt)">Bolt drop</button>
     <button type="button" data-id="wd" style="--c:var(--wolt)">Wolt drop</button>
   </div>
-  <div class="hint" style="margin:0 0 8px">Pick a point above, then press and hold on the map for 2-3 seconds. The address and distances appear automatically.</div>
   <div id="map"></div>
+  </div>
   <div class="legend">
     <span style="--c:var(--bolt)"><i></i>Bolt</span>
     <span style="--c:var(--wolt)"><i></i>Wolt</span>
     <span style="--c:#e5322d"><i class="dash"></i>Bolt ↔ Wolt</span>
   </div>
   <div class="opts">
-    <label><input type="checkbox" id="x-cross"> Show cross lines (pickup ↔ drop)</label>
+    <label><input type="checkbox" id="x-cross" checked> Show every distance (all points to all points)</label>
     <label><input type="checkbox" id="x-best"> Show full route (orange)</label>
   </div>
   <div class="hint">The km on each line is the shortest road distance. Numbers show the order to go.</div>
@@ -247,6 +259,7 @@
 </section>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js"></script>
 <script>
 (function () {
@@ -410,7 +423,7 @@
 
   function ensureMap() {
     if (map) return;
-    map = L.map('map');
+    map = L.map('map', { rotate: true, touchRotate: true, bearing: 0, rotateControl: { closeOnZeroBearing: false } });
     map.setView([44.4268, 26.1025], 12);
     map.on('contextmenu', function (e) { onLongPress(e); });
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -418,6 +431,7 @@
     }).addTo(map);
     layer = L.layerGroup().addTo(map);
     edgeLayer = L.layerGroup().addTo(map);
+    addControls();
   }
 
   var lastFit = null, meCentered = false;
@@ -472,7 +486,10 @@
     function add(a, b, col) { if (P[a] && P[b]) d.push({ a: a, b: b, col: col }); }
     add('bp', 'wp', 'red');
     add('bd', 'wd', 'red');
-    if ($('x-cross').checked) { add('bp', 'wd', 'red'); add('wp', 'bd', 'red'); }
+    if ($('x-cross').checked) {
+      add('bp', 'wd', 'red'); add('wp', 'bd', 'red');
+      add('me', 'bd', 'bolt'); add('me', 'wd', 'wolt');
+    }
     add('me', 'bp', 'bolt');
     add('bp', 'bd', 'bolt');
     add('me', 'wp', 'wolt');
@@ -721,7 +738,7 @@
   });
   ['speed', 'road', 'stop'].forEach(function (id) { $(id).addEventListener('input', calc); });
 
-  var watchId = null, lastMe = null, liveTimer = null, lastCalcAt = 0;
+  var centerNext = false, watchId = null, lastMe = null, liveTimer = null, lastCalcAt = 0;
 
   function stopLive() {
     if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
@@ -747,6 +764,11 @@
     $('gps').classList.add('live');
     watchId = navigator.geolocation.watchPosition(function (pos) {
       var c = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      if (centerNext) {
+        centerNext = false;
+        meCentered = true;
+        if (map) map.setView([c.lat, c.lng], Math.max(map.getZoom(), 16));
+      }
       $('found-me').textContent = 'Live \u2713 (\u00b1' + Math.round(pos.coords.accuracy) + ' m)';
       if (cache.me && lastMe && hav(lastMe, c) < 0.02) return;
       lastMe = c;
@@ -869,6 +891,45 @@
   }
   $('rs-b').addEventListener('click', function () { resetApp('b'); });
   $('rs-w').addEventListener('click', function () { resetApp('w'); });
+
+  var ICON_EXPAND = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+  var ICON_CLOSE = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19"/></svg>';
+  var ICON_LOC = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.6" fill="currentColor"/><circle cx="12" cy="12" r="8"/><path d="M12 1.5v3.5M12 19v3.5M1.5 12H5M19 12h3.5"/></svg>';
+  var isFull = false;
+
+  function addCtl(pos, html, label, fn) {
+    var c = L.control({ position: pos });
+    c.onAdd = function () {
+      var b = L.DomUtil.create('button', 'mapbtn');
+      b.type = 'button';
+      b.innerHTML = html;
+      b.setAttribute('aria-label', label);
+      L.DomEvent.disableClickPropagation(b);
+      L.DomEvent.on(b, 'click', function (ev) { L.DomEvent.stop(ev); fn(b); });
+      return b;
+    };
+    c.addTo(map);
+  }
+
+  function toggleFull(btn) {
+    isFull = !isFull;
+    $('map-wrap').classList.toggle('full', isFull);
+    document.body.classList.toggle('noscroll', isFull);
+    btn.innerHTML = isFull ? ICON_CLOSE : ICON_EXPAND;
+    setTimeout(function () { map.invalidateSize(); }, 150);
+  }
+
+  function locateMe() {
+    if (!map) return;
+    meCentered = true;
+    if (cache.me) map.setView([cache.me.lat, cache.me.lng], Math.max(map.getZoom(), 16));
+    if (watchId === null) { centerNext = true; $('gps').click(); }
+  }
+
+  function addControls() {
+    addCtl('topright', ICON_EXPAND, 'Full screen', toggleFull);
+    addCtl('bottomright', ICON_LOC, 'My location', locateMe);
+  }
 
   ['x-cross', 'x-best'].forEach(function (id) { $(id).addEventListener('change', calc); });
 
