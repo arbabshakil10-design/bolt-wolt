@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Double Order Calculator</title>
+<title>Double Drop Planner</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   :root {
@@ -12,8 +12,8 @@
     --ink: #14181b;
     --muted: #5d676e;
     --line: #dde1dc;
-    --bolt: #1fa866;
-    --wolt: #0a8fd0;
+    --bolt: #12a150;
+    --wolt: #0b6ef0;
     --warn: #c0392b;
     --good: #1c7a4a;
   }
@@ -25,7 +25,7 @@
       --muted: #9aa5ab;
       --line: #2c3337;
       --bolt: #3ed98d;
-      --wolt: #4cb8f0;
+      --wolt: #4da3ff;
       --warn: #ff7b6b;
       --good: #4fd790;
     }
@@ -91,7 +91,7 @@
   #map { height: 380px; border-radius: 10px; overflow: hidden; background: var(--bg); }
   .pin { width: 28px; height: 28px; border-radius: 50%; background: var(--c); color: #fff; border: 3px solid #fff;
     box-shadow: 0 1px 5px rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; font: 800 13px system-ui, sans-serif; }
-  .pin.drop { border-radius: 7px; background: #fff; color: var(--c); border: 3px solid var(--c); }
+  .pin.drop { border-radius: 7px; }
   .leaflet-container { font-family: system-ui, sans-serif; }
   .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .head h2 { margin: 0; }
@@ -102,25 +102,45 @@
   .pickseg button { flex: 1 1 45%; padding: 10px 0; border: 2px solid var(--c); }
   .pickseg button.on { background: var(--c); color: #fff; }
   button.live { background: var(--bolt); border-color: var(--bolt); color: #06210f; }
+  .elabel { transform: translate(-50%, -50%); white-space: nowrap; color: #fff; font: 800 12px system-ui, sans-serif;
+    padding: 3px 8px; border-radius: 99px; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+  .opts { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; font-size: 14px; }
+  .opts label { display: flex; align-items: center; gap: 8px; }
+  .opts input { width: 18px; height: 18px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; font-weight: 600; margin-top: 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { display: inline-block; width: 22px; height: 0; border-top: 5px solid var(--c); }
+  .legend i.dash { border-top-style: dashed; border-top-width: 4px; }
+  h1 { font-size: 27px; font-weight: 900; }
+  h1 .grad { background: linear-gradient(90deg, var(--bolt), var(--wolt)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  section { box-shadow: 0 2px 12px rgba(0,0,0,.07); border-radius: 18px; }
+  .navbtn { display: block; text-align: center; margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--ink); color: var(--bg);
+    font-weight: 800; font-size: 16px; text-decoration: none; }
+  .num { display: inline-flex; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--bg);
+    align-items: center; justify-content: center; font-size: 12px; flex: none; }
+  .maplink { display: inline-block; margin-top: 6px; font-size: 12.5px; font-weight: 700; color: var(--wolt); text-decoration: none;
+    border: 1px solid var(--line); border-radius: 99px; padding: 4px 10px; white-space: nowrap; background: var(--bg); }
+  .maplink[hidden] { display: none; }
+  .steps .maplink { margin: 0 0 0 4px; padding: 3px 9px; }
 </style>
 </head>
 <body>
 
-<h1>Double Order Calculator</h1>
-<p class="sub">Bolt + Wolt, dono orders ka rasta aur waqt pehle hi pata karo.</p>
+<h1><span class="logo">🚴</span> <span class="grad">Double Drop Planner</span></h1>
+<p class="sub">Plan your Bolt + Wolt double orders before you pick them up.</p>
 
 <section>
-  <div class="head"><h2>Locations</h2></div>
+  <div class="head"><h2>📍 Locations</h2></div>
   <div class="resets">
-    <button type="button" id="rs-b" style="border-color:var(--bolt)">Bolt reset</button>
-    <button type="button" id="rs-w" style="border-color:var(--wolt)">Wolt reset</button>
-    <button id="reset" type="button" class="reset">Sab reset</button>
+    <button type="button" id="rs-b" style="border-color:var(--bolt)">Reset Bolt</button>
+    <button type="button" id="rs-w" style="border-color:var(--wolt)">Reset Wolt</button>
+    <button id="reset" type="button" class="reset">Reset all</button>
   </div>
 
   <div class="field">
-    <label><span class="dot" style="background:var(--ink)"></span>Meri location</label>
+    <label><span class="dot" style="background:var(--ink)"></span>My location</label>
     <div class="row">
-      <input type="text" id="me" placeholder="lat,lng, link ya address" inputmode="text" autocomplete="off">
+      <input type="text" id="me" placeholder="lat,lng, link or address" inputmode="text" autocomplete="off">
       <button id="gps" class="primary" type="button">GPS</button>
     </div>
     <div class="err" id="err-me"></div>
@@ -128,53 +148,62 @@
 
   <div class="field">
     <label><span class="dot" style="background:var(--bolt)"></span>Bolt pickup</label>
-    <input type="text" id="bp" placeholder="lat,lng, link ya address" autocomplete="off">
+    <input type="text" id="bp" placeholder="lat,lng, link or address" autocomplete="off">
     <div class="err" id="err-bp"></div>
   </div>
 
   <div class="field">
     <label><span class="dot" style="background:var(--wolt)"></span>Wolt pickup</label>
-    <input type="text" id="wp" placeholder="lat,lng, link ya address" autocomplete="off">
+    <input type="text" id="wp" placeholder="lat,lng, link or address" autocomplete="off">
     <div class="err" id="err-wp"></div>
   </div>
 
   <div class="field">
     <details>
-      <summary>Drop locations (optional, direction check ke liye)</summary>
+      <summary>Drop locations (optional, for direction check)</summary>
       <div style="margin-top:10px">
         <div class="field">
           <label><span class="dot sq" style="background:var(--bolt)"></span>Bolt drop</label>
-          <input type="text" id="bd" placeholder="lat,lng, link ya address" autocomplete="off">
+          <input type="text" id="bd" placeholder="lat,lng, link or address" autocomplete="off">
           <div class="err" id="err-bd"></div>
         </div>
         <div class="field">
           <label><span class="dot sq" style="background:var(--wolt)"></span>Wolt drop</label>
-          <input type="text" id="wd" placeholder="lat,lng, link ya address" autocomplete="off">
+          <input type="text" id="wd" placeholder="lat,lng, link or address" autocomplete="off">
           <div class="err" id="err-wd"></div>
         </div>
       </div>
     </details>
-    <div class="hint">Teen tareeqe: coordinates paste karo, Google Maps ka lamba link paste karo, ya seedha address likho aur Enter dabao. Chhota link (maps.app.goo.gl) kaam nahi karta.</div>
+    <div class="hint">Three ways: paste coordinates, paste a long Google Maps link, or type an address and press Enter. Short links (maps.app.goo.gl) do not work.</div>
   </div>
 </section>
 
 <section id="map-card">
-  <h2>Map</h2>
+  <h2>🗺️ Map</h2>
   <div class="pickseg" id="pick-seg">
     <button type="button" data-id="bp" class="on" style="--c:var(--bolt)">Bolt pickup</button>
     <button type="button" data-id="wp" style="--c:var(--wolt)">Wolt pickup</button>
     <button type="button" data-id="bd" style="--c:var(--bolt)">Bolt drop</button>
     <button type="button" data-id="wd" style="--c:var(--wolt)">Wolt drop</button>
   </div>
-  <div class="hint" style="margin:0 0 8px">Upar point chuno, phir map pe jagah par 2-3 second dabake rakho. Wahan ka address aur distance khud nikal aayega.</div>
+  <div class="hint" style="margin:0 0 8px">Pick a point above, then press and hold on the map for 2-3 seconds. The address and distances appear automatically.</div>
   <div id="map"></div>
-  <div class="hint">Number = jaane ka order. Narangi line = asli sarak ka rasta.</div>
+  <div class="legend">
+    <span style="--c:var(--bolt)"><i></i>Bolt</span>
+    <span style="--c:var(--wolt)"><i></i>Wolt</span>
+    <span style="--c:#e5322d"><i class="dash"></i>Bolt ↔ Wolt</span>
+  </div>
+  <div class="opts">
+    <label><input type="checkbox" id="x-cross"> Show cross lines (pickup ↔ drop)</label>
+    <label><input type="checkbox" id="x-best"> Show full route (orange)</label>
+  </div>
+  <div class="hint">The km on each line is the shortest road distance. Numbers show the order to go.</div>
   <div class="hint" id="route-note"></div>
 </section>
 
 <section>
-  <h2>Screenshot se address</h2>
-  <div class="hint" style="margin:0 0 10px">Bolt ya Wolt order ka screenshot daalo. Padhi hui lines niche aayengi, jis line pe tap karo wo Pickup ya Drop mein chali jayegi.</div>
+  <h2>📸 Read from screenshot</h2>
+  <div class="hint" style="margin:0 0 10px">Upload a Bolt or Wolt order screenshot. The text it reads shows below. Tap a line to use it as Pickup or Drop.</div>
   <div class="field">
     <label><span class="dot" style="background:var(--bolt)"></span>Bolt screenshot</label>
     <input type="file" accept="image/*" id="ss-b">
@@ -192,7 +221,7 @@
 </section>
 
 <section>
-  <h2>Settings</h2>
+  <h2>⚙️ Settings</h2>
   <div class="grid3">
     <div class="field">
       <label for="speed">Speed km/h</label>
@@ -203,18 +232,18 @@
       <input type="number" id="road" value="1.3" min="1" max="2" step="0.05" inputmode="decimal">
     </div>
     <div class="field">
-      <label for="stop">Pickup wait min</label>
+      <label for="stop">Pickup wait (min)</label>
       <input type="number" id="stop" value="4" min="0" max="30" inputmode="decimal">
     </div>
   </div>
-  <div class="hint">Road factor: seedhi line ko asli sarak ke hisab se barhata hai (1.3 matlab 30% zyada).</div>
+  <div class="hint">Road factor: only used when the route server is down. It stretches the straight line to estimate road distance (1.3 = 30% longer).</div>
 </section>
 
 
 
 <section id="result-card">
-  <h2>Natija</h2>
-  <div id="result"><div class="empty">Apni location aur dono pickup points daalo.</div></div>
+  <h2>✅ Your plan</h2>
+  <div id="result"><div class="empty">Add your location and both pickup points.</div></div>
 </section>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -276,7 +305,8 @@
 
   var BIKE = 'https://routing.openstreetmap.de/routed-bike';
   var CAR = 'https://router.project-osrm.org';
-  var HEX = { me: '#14181b', bp: '#1fa866', wp: '#0a8fd0', bd: '#1fa866', wd: '#0a8fd0' };
+  var HEX = { me: '#14181b', bp: '#12a150', wp: '#0b6ef0', bd: '#12a150', wd: '#0b6ef0' };
+  var EDGE = { bolt: '#12a150', wolt: '#0b6ef0', red: '#e5322d' };
   var matCache = {}, calcToken = 0, calcTimer = null, map = null, layer = null;
 
   function coordStr(P, keys) {
@@ -333,6 +363,37 @@
     return one(BIKE).catch(function () { return one(CAR); });
   }
 
+  function greedy(D, hasDrops) {
+    var left = hasDrops ? ['bp', 'wp', 'bd', 'wd'] : ['bp', 'wp'], seq = [], prev = 'me';
+    while (left.length) {
+      var cand = left.filter(function (k) {
+        if (k === 'bd') return seq.indexOf('bp') > -1;
+        if (k === 'wd') return seq.indexOf('wp') > -1;
+        return true;
+      });
+      var pick = cand.reduce(function (a, b) { return D[prev][b] < D[prev][a] ? b : a; });
+      seq.push(pick);
+      left.splice(left.indexOf(pick), 1);
+      prev = pick;
+    }
+    return seq;
+  }
+
+  function mapDirUrl(p) {
+    return 'https://www.google.com/maps/dir/?api=1&travelmode=bicycling&destination=' + p.lat.toFixed(6) + ',' + p.lng.toFixed(6);
+  }
+
+  function mapPinUrl(p) {
+    return 'https://www.google.com/maps/search/?api=1&query=' + p.lat.toFixed(6) + ',' + p.lng.toFixed(6);
+  }
+
+  function navUrl(P, seq) {
+    var pts = seq.map(function (k) { return P[k].lat.toFixed(6) + ',' + P[k].lng.toFixed(6); });
+    var u = 'https://www.google.com/maps/dir/?api=1&travelmode=bicycling&destination=' + pts[pts.length - 1];
+    if (pts.length > 1) u += '&waypoints=' + encodeURIComponent(pts.slice(0, -1).join('|'));
+    return u;
+  }
+
   function evaluate(seq, D, speed, stop) {
     var t = 0, km = 0, prev = 'me', steps = [], arrive = {};
     seq.forEach(function (k) {
@@ -356,13 +417,14 @@
       maxZoom: 19, attribution: '&copy; OpenStreetMap'
     }).addTo(map);
     layer = L.layerGroup().addTo(map);
+    edgeLayer = L.layerGroup().addTo(map);
   }
 
   var lastFit = null, meCentered = false;
 
   function drawMap(P, keys, best, line) {
     if (typeof L === 'undefined') {
-      $('map').innerHTML = '<div class="empty" style="padding:14px">Map load nahi hua. Internet check karo aur page dobara kholo.</div>';
+      $('map').innerHTML = '<div class="empty" style="padding:14px">Map did not load. Check your internet and reload the page.</div>';
       return;
     }
     ensureMap();
@@ -370,19 +432,21 @@
     layer.clearLayers();
     var order = {};
     if (best) best.seq.forEach(function (k, i) { order[k] = i + 1; });
-    if (best && line) {
-      L.polyline(line, { color: '#ff6b00', weight: 6, opacity: 0.9 }).addTo(layer);
-    } else if (best) {
+    var showBest = $('x-best').checked;
+    if (best && showBest && line) {
+      L.polyline(line, { color: '#ff6b00', weight: 3, opacity: 0.95, dashArray: '2 7', lineCap: 'round' }).addTo(layer);
+    } else if (best && showBest) {
       var pts = [P.me].concat(best.seq.map(function (k) { return P[k]; })).map(function (p) { return [p.lat, p.lng]; });
       L.polyline(pts, { color: '#ff6b00', weight: 4, dashArray: '8 8' }).addTo(layer);
     }
     keys.forEach(function (k) {
       var isDrop = (k === 'bd' || k === 'wd');
-      var txt = k === 'me' ? '' : (order[k] || '');
+      var txt = k === 'me' ? '' : (order[k] || (isDrop ? 'D' : 'P'));
       var html = '<div class="pin' + (isDrop ? ' drop' : '') + '" style="--c:' + HEX[k] + '">' + txt + '</div>';
       L.marker([P[k].lat, P[k].lng], {
         icon: L.divIcon({ className: '', html: html, iconSize: [28, 28], iconAnchor: [14, 14] })
-      }).addTo(layer).bindTooltip(NAMES[k], { direction: 'top', offset: [0, -12] });
+      }).addTo(layer).bindTooltip(NAMES[k], { direction: 'top', offset: [0, -12] })
+        .bindPopup('<b>' + NAMES[k] + '</b><br><a href="' + (k === 'me' ? mapPinUrl(P[k]) : mapDirUrl(P[k])) + '" target="_blank" rel="noopener">Open in Google Maps</a>');
     });
     if (!P.me) meCentered = false;
     var fitKey = keys.filter(function (k) { return k !== 'me'; }).map(function (k) {
@@ -396,6 +460,84 @@
       if (b.length > 1) map.fitBounds(b, { padding: [30, 30] });
       else if (b.length === 1) map.setView(b[0], 15);
     }
+    drawEdges(P);
+  }
+
+  var edgeLayer = null, edgeToken = 0, edgeCache = {};
+
+  function fmtKm1(k) { return k < 1 ? Math.round(k * 1000) + ' m' : k.toFixed(1) + ' km'; }
+
+  function edgeDefs(P) {
+    var d = [];
+    function add(a, b, col) { if (P[a] && P[b]) d.push({ a: a, b: b, col: col }); }
+    add('bp', 'wp', 'red');
+    add('bd', 'wd', 'red');
+    if ($('x-cross').checked) { add('bp', 'wd', 'red'); add('wp', 'bd', 'red'); }
+    add('me', 'bp', 'bolt');
+    add('bp', 'bd', 'bolt');
+    add('me', 'wp', 'wolt');
+    add('wp', 'wd', 'wolt');
+    return d;
+  }
+
+  function getEdge(P, a, b) {
+    var cs = coordStr(P, [a, b]);
+    if (edgeCache[cs]) return edgeCache[cs];
+    if (Object.keys(edgeCache).length > 80) edgeCache = {};
+    function one(base) {
+      return fetchJson(base + '/route/v1/driving/' + cs + '?overview=full&geometries=geojson').then(function (res) {
+        if (res.code !== 'Ok' || !res.routes.length) throw new Error('bad');
+        var r = res.routes[0];
+        return { pts: r.geometry.coordinates.map(function (c) { return [c[1], c[0]]; }), km: r.distance / 1000, est: false };
+      });
+    }
+    var pr = one(BIKE).catch(function () { return one(CAR); }).catch(function () {
+      return {
+        pts: [[P[a].lat, P[a].lng], [P[b].lat, P[b].lng]],
+        km: hav(P[a], P[b]) * num('road', 1.3), est: true
+      };
+    });
+    edgeCache[cs] = pr;
+    pr.then(function (r) { if (r.est) delete edgeCache[cs]; });
+    return pr;
+  }
+
+  function midPoint(pts) {
+    var cum = [0], i;
+    for (i = 1; i < pts.length; i++) {
+      cum.push(cum[i - 1] + hav({ lat: pts[i - 1][0], lng: pts[i - 1][1] }, { lat: pts[i][0], lng: pts[i][1] }));
+    }
+    var half = cum[cum.length - 1] / 2;
+    for (i = 0; i < pts.length; i++) { if (cum[i] >= half) return pts[i]; }
+    return pts[pts.length - 1];
+  }
+
+  function drawEdges(P) {
+    if (typeof L === 'undefined' || !map || !edgeLayer) return;
+    var tk = ++edgeToken, defs = edgeDefs(P);
+    if (!defs.length) { edgeLayer.clearLayers(); return; }
+    Promise.all(defs.map(function (d) {
+      return getEdge(P, d.a, d.b).then(function (e) { return { d: d, e: e }; });
+    })).then(function (list) {
+      if (tk !== edgeToken) return;
+      edgeLayer.clearLayers();
+      list.sort(function (x, y) { return (x.d.col === 'red' ? 0 : 1) - (y.d.col === 'red' ? 0 : 1); });
+      var anyEst = false;
+      list.forEach(function (it) {
+        var red = it.d.col === 'red', col = EDGE[it.d.col];
+        if (it.e.est) anyEst = true;
+        L.polyline(it.e.pts, {
+          color: col, weight: red ? 4 : 6, opacity: 0.9, dashArray: red ? '10 8' : null
+        }).addTo(edgeLayer);
+        L.marker(midPoint(it.e.pts), {
+          interactive: false,
+          icon: L.divIcon({ className: '', html: '<div class="elabel" style="background:' + col + '">' + fmtKm1(it.e.km) + '</div>', iconSize: [0, 0] })
+        }).addTo(edgeLayer);
+      });
+      var note = $('route-note');
+      if (anyEst) note.textContent = 'Route server not reachable for some lines. Those are straight-line estimates.';
+      else if (note.textContent.indexOf('not reachable') > -1) note.textContent = '';
+    });
   }
 
   function drawPartial(P) {
@@ -406,12 +548,13 @@
     return r.seq.map(function (k) { return NAMES[k]; }).join(' \u2192 ');
   }
 
-  function stepsHtml(r) {
+  function stepsHtml(r, P) {
     var h = '<ul class="steps">';
-    r.steps.forEach(function (s) {
-      h += '<li><span class="dot ' + ((s.key === 'bd' || s.key === 'wd') ? 'sq' : '') + '" style="background:' + COLORS[s.key] + '"></span>' +
+    r.steps.forEach(function (s, i) {
+      h += '<li><b class="num">' + (i + 1) + '</b><span class="dot ' + ((s.key === 'bd' || s.key === 'wd') ? 'sq' : '') + '" style="background:' + COLORS[s.key] + '"></span>' +
         '<span>' + NAMES[s.key] + ' <span class="tag">(' + fmtKm(s.d) + ')</span></span>' +
-        '<span class="t">' + fmtMin(s.t) + '</span></li>';
+        '<span class="t">' + fmtMin(s.t) + '</span>' +
+        '<a class="maplink" href="' + mapDirUrl(P[s.key]) + '" target="_blank" rel="noopener">\uD83D\uDDFA\uFE0F Map</a></li>';
     });
     return h + '</ul>';
   }
@@ -425,11 +568,12 @@
     var token = ++calcToken;
     var P = {};
     ids.forEach(function (id) { if (cache[id]) P[id] = cache[id]; });
+    updateLinks(P);
     var result = $('result'), mapCard = $('map-card');
     if (!P.me || !P.bp || !P.wp) {
       $('route-note').textContent = '';
       drawPartial(P);
-      result.innerHTML = '<div class="empty">Apni location aur dono pickup points daalo, ya map pe jagah par 2-3 second dabake rakho.</div>';
+      result.innerHTML = '<div class="empty">Add your location and both pickups, or press and hold on the map.</div>';
       return;
     }
     if (P.bd && !P.wd) delete P.bd;
@@ -442,7 +586,7 @@
     var stop = isFinite(stopEl) && stopEl >= 0 ? stopEl : 4;
 
     mapCard.hidden = false;
-    result.innerHTML = '<div class="empty">Asli rasta nikal raha hun...</div>';
+    result.innerHTML = '<div class="empty">Finding the real road route...</div>';
 
     getMatrix(P, keys).then(function (mx) {
       if (token !== calcToken) return;
@@ -454,12 +598,13 @@
         : [['bp', 'wp'], ['wp', 'bp']];
       var evals = routes.map(function (sq) { return evaluate(sq, D, speed, stop); })
         .sort(function (a, b) { return a.min - b.min; });
-      var best = evals[0];
+      var fastest = evals[0];
+      var best = evaluate(greedy(D, hasDrops), D, speed, stop);
 
       var pp = D.bp.wp;
       var closeCls = pp < 0.6 ? 'good' : (pp < 1.5 ? 'mid' : 'bad');
-      var closeTxt = pp < 0.6 ? 'Pickups qareeb hain, double order theek' :
-                     (pp < 1.5 ? 'Pickups darmiyane faasle pe hain' : 'Pickups door hain, soch ke lo');
+      var closeTxt = pp < 0.6 ? 'Pickups are close, double order looks good' :
+                     (pp < 1.5 ? 'Pickups are a medium distance apart' : 'Pickups are far apart, think twice');
 
       function tri(a, b) {
         return '<li><span>' + NAMES[a] + ' \u2192 ' + NAMES[b] + '</span><span class="t">' +
@@ -467,11 +612,17 @@
       }
 
       var h = '<div class="route best">';
-      h += '<p class="verdict">' + seqText(best) + '</p>';
+      h += '<div class="tag">Go in this order (nearest first)</div><p class="verdict">' + seqText(best) + '</p>';
       h += '<div class="tot">' + fmtKm(best.km) + ' \u00b7 ' + fmtMin(best.min) + '</div>';
-      h += stepsHtml(best) + '</div>';
+      h += stepsHtml(best, P);
+      h += '<a class="navbtn" href="' + navUrl(P, best.seq) + '" target="_blank" rel="noopener">\uD83E\uDDED Navigate in Google Maps</a>';
+      if (fastest.seq.join() !== best.seq.join() && fastest.min < best.min - 1) {
+        h += '<div class="hint" style="margin-top:8px">Fastest total: ' + seqText(fastest) + ' \u00b7 ' + fmtMin(fastest.min) +
+          ' (saves ' + fmtMin(best.min - fastest.min) + ')</div>';
+      }
+      h += '</div>';
 
-      h += '<div class="route"><div class="tag">Triangle (asli sarak ke hisab se)</div><ul class="steps">' +
+      h += '<div class="route"><div class="tag">Triangle (real road distance)</div><ul class="steps">' +
         tri('me', 'bp') + tri('me', 'wp') + tri('bp', 'wp') + '</ul>' +
         '<div style="margin-top:8px"><span class="pill ' + closeCls + '">' + closeTxt + '</span></div></div>';
 
@@ -481,13 +632,13 @@
         if (diff > 180) diff = 360 - diff;
         var dd = D.bd.wd, opp = diff > 110;
         h += '<div class="route"><span class="pill ' + (opp ? 'bad' : (diff > 60 ? 'mid' : 'good')) + '">' +
-          (opp ? 'Drops ulti direction mein hain' : (diff > 60 ? 'Drops thori alag direction mein' : 'Drops ek hi direction mein')) + '</span>';
-        h += '<div class="hint" style="margin-top:8px">Bolt drop se Wolt drop tak: <b>' + fmtKm(dd) + '</b> \u00b7 <b>' + fmtMin(dd / speed * 60) + '</b></div>';
-        h += '<div class="hint">Best route mein Bolt drop <b>' + fmtMin(best.arrive.bd) + '</b> pe, Wolt drop <b>' + fmtMin(best.arrive.wd) + '</b> pe.</div></div>';
+          (opp ? 'Drops are in opposite directions' : (diff > 60 ? 'Drops are in somewhat different directions' : 'Drops are in the same direction')) + '</span>';
+        h += '<div class="hint" style="margin-top:8px">Bolt drop to Wolt drop: <b>' + fmtKm(dd) + '</b> \u00b7 <b>' + fmtMin(dd / speed * 60) + '</b></div>';
+        h += '<div class="hint">In this route, Bolt drop at <b>' + fmtMin(best.arrive.bd) + '</b>, Wolt drop at <b>' + fmtMin(best.arrive.wd) + '</b>.</div></div>';
       }
 
       if (evals.length > 1) {
-        h += '<div class="route"><details><summary>Baqi routes</summary>';
+        h += '<div class="route"><details><summary>Other routes</summary>';
         evals.slice(1).forEach(function (r) {
           h += '<div class="route"><div class="tot">' + fmtKm(r.km) + ' \u00b7 ' + fmtMin(r.min) +
             ' <span class="tag">(+' + fmtMin(r.min - best.min) + ')</span></div><div class="tag">' + seqText(r) + '</div></div>';
@@ -497,17 +648,18 @@
       result.innerHTML = h;
 
       var note = $('route-note');
-      note.textContent = mx.src === 'cycle' ? 'Distance asli sarak (cycle route) se nikala gaya hai.' :
-        mx.src === 'car' ? 'Distance gari ke route se nikala gaya hai (cycle route server nahi mila).' :
-        'Route server nahi mila, isliye seedhi line ka andaza dikha raha hun.';
+      note.textContent = mx.src === 'cycle' ? 'Distances use real roads (bike route).' :
+        mx.src === 'car' ? 'Distances use car roads (bike route server not reachable).' :
+        'Route server not reachable, so these are straight-line estimates.';
 
       drawMap(P, keys, best, null);
-      getRoute(P, ['me'].concat(best.seq), mx.src).then(function (line) { return line; }, function () { return null; })
-        .then(function (line) {
-          if (token !== calcToken) return;
-          if (line) drawMap(P, keys, best, line);
-          else note.textContent += ' Sarak ki line nahi mili, narangi dotted line seedhi hai.';
-        });
+      if ($('x-best').checked) {
+        getRoute(P, ['me'].concat(best.seq), mx.src).then(function (line) { return line; }, function () { return null; })
+          .then(function (line) {
+            if (token !== calcToken) return;
+            if (line) drawMap(P, keys, best, line);
+          });
+      }
     });
   }
 
@@ -521,7 +673,7 @@
 
   function geocode(id, q) {
     var f = $('found-' + id), e = $('err-' + id);
-    f.textContent = 'Dhoondh raha hun...'; e.textContent = '';
+    f.textContent = 'Searching...'; e.textContent = '';
     var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(q);
     if (cache.me && id !== 'me') {
       var d = 0.25, m = cache.me;
@@ -533,7 +685,7 @@
         if ($(id).value.trim() !== q) return;
         if (!res.length) {
           f.textContent = '';
-          e.textContent = 'Address nahi mila. Street, number aur sheher likh ke dobara try karo.';
+          e.textContent = 'Address not found. Add street, number and city, then try again.';
           return;
         }
         cache[id] = { lat: parseFloat(res[0].lat), lng: parseFloat(res[0].lon) };
@@ -542,7 +694,7 @@
       })
       .catch(function () {
         f.textContent = '';
-        e.textContent = 'Search nahi chala. Internet check karo ya coordinates paste karo.';
+        e.textContent = 'Search failed. Check your internet or paste coordinates.';
       });
   }
 
@@ -553,7 +705,7 @@
     if (isPt(r)) { cache[id] = r; $('found-' + id).textContent = 'Coordinates \u2713'; }
     else {
       delete cache[id];
-      if (r === 'bad') $('err-' + id).textContent = 'Coordinates galat hain.';
+      if (r === 'bad') $('err-' + id).textContent = 'Invalid coordinates.';
     }
     calc();
   }
@@ -589,8 +741,8 @@
   $('gps').addEventListener('click', function () {
     var e = $('err-me');
     e.textContent = '';
-    if (watchId !== null) { stopLive(); $('found-me').textContent = 'Live band kar diya.'; return; }
-    if (!navigator.geolocation) { e.textContent = 'Is browser mein GPS nahi hai.'; return; }
+    if (watchId !== null) { stopLive(); $('found-me').textContent = 'Live tracking stopped.'; return; }
+    if (!navigator.geolocation) { e.textContent = 'This browser has no GPS.'; return; }
     $('gps').textContent = 'Live \u25cf';
     $('gps').classList.add('live');
     watchId = navigator.geolocation.watchPosition(function (pos) {
@@ -603,7 +755,7 @@
       liveCalc();
     }, function () {
       stopLive();
-      e.textContent = 'GPS nahi mila. Location permission on karo. File se khol rahe ho to https wali jagah se kholo.';
+      e.textContent = 'Could not get GPS. Turn on location permission for this site.';
     }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
   });
 
@@ -628,8 +780,8 @@
     var all = good.concat(rest).slice(0, 14);
     var box = $('chips-' + app), st = $('st-' + app);
     box.innerHTML = '';
-    if (!all.length) { st.textContent = 'Kuch nahi padha gaya. Saaf screenshot try karo ya address khud likho.'; return; }
-    st.textContent = 'Line pe tap karo. Upar wale button se Pickup ya Drop chuno.';
+    if (!all.length) { st.textContent = 'Nothing could be read. Try a clearer screenshot or type the address.'; return; }
+    st.textContent = 'Tap a line to use it. Choose Pickup or Drop with the buttons above.';
     all.forEach(function (line) {
       var b = document.createElement('button');
       b.type = 'button'; b.textContent = line;
@@ -649,13 +801,13 @@
     var st = $('st-' + app);
     $('chips-' + app).innerHTML = '';
     if (typeof Tesseract === 'undefined') {
-      st.textContent = 'Padhne wala module load nahi hua. Internet check karo aur page dobara kholo.';
+      st.textContent = 'Text reader did not load. Check your internet and reload the page.';
       return;
     }
-    st.textContent = 'Screenshot padh raha hun... 0%';
+    st.textContent = 'Reading screenshot... 0%';
     Tesseract.createWorker('ron+eng', 1, {
       logger: function (m) {
-        if (m.status === 'recognizing text') st.textContent = 'Screenshot padh raha hun... ' + Math.round(m.progress * 100) + '%';
+        if (m.status === 'recognizing text') st.textContent = 'Reading screenshot... ' + Math.round(m.progress * 100) + '%';
       }
     }).then(function (w) {
       return w.recognize(file).then(function (res) {
@@ -664,7 +816,7 @@
     }).then(function (res) {
       showChips(app, res.data.text || '');
     }).catch(function () {
-      st.textContent = 'Padhne mein masla aaya. Dobara try karo ya address khud likho.';
+      st.textContent = 'Could not read it. Try again or type the address.';
     });
   }
 
@@ -694,7 +846,7 @@
     meCentered = false;
     calc();
     $('route-note').textContent = '';
-    $('result').innerHTML = '<div class="empty">Apni location aur dono pickup points daalo.</div>';
+    $('result').innerHTML = '<div class="empty">Add your location and both pickup points.</div>';
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
@@ -718,6 +870,8 @@
   $('rs-b').addEventListener('click', function () { resetApp('b'); });
   $('rs-w').addEventListener('click', function () { resetApp('w'); });
 
+  ['x-cross', 'x-best'].forEach(function (id) { $(id).addEventListener('change', calc); });
+
   var target = 'bp';
   function setTarget(id) {
     target = id;
@@ -732,9 +886,9 @@
     fetchJson('https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lng)
       .then(function (res) {
         if (!cache[id] || cache[id].lat !== lat) return;
-        $('found-' + id).textContent = '\u2713 ' + (res.display_name || 'Map se chuna');
+        $('found-' + id).textContent = '\u2713 ' + (res.display_name || 'Picked on map');
       }).catch(function () {
-        if (cache[id] && cache[id].lat === lat) $('found-' + id).textContent = 'Map se chuna \u2713';
+        if (cache[id] && cache[id].lat === lat) $('found-' + id).textContent = 'Picked on map \u2713';
       });
   }
 
@@ -743,12 +897,31 @@
     cache[id] = { lat: lat, lng: lng };
     $(id).value = lat.toFixed(6) + ', ' + lng.toFixed(6);
     $('err-' + id).textContent = '';
-    $('found-' + id).textContent = 'Map se chuna \u2713 (address dhoondh raha hun...)';
+    $('found-' + id).textContent = 'Picked on map \u2713 (looking up address...)';
     if (id === 'bd' || id === 'wd') document.querySelector('details').open = true;
     reverse(id, lat, lng);
     if (id === 'bp' && !cache.wp) setTarget('wp');
     else if (id === 'wp' && !cache.bp) setTarget('bp');
     calc();
+  }
+
+  ids.forEach(function (id) {
+    var a = document.createElement('a');
+    a.className = 'maplink'; a.id = 'link-' + id; a.target = '_blank'; a.rel = 'noopener'; a.hidden = true;
+    $('err-' + id).parentNode.insertBefore(a, $('err-' + id));
+  });
+
+  function updateLinks(P) {
+    ids.forEach(function (id) {
+      var a = $('link-' + id);
+      if (P[id]) {
+        a.href = id === 'me' ? mapPinUrl(P[id]) : mapDirUrl(P[id]);
+        a.textContent = id === 'me' ? '\uD83D\uDDFA\uFE0F Show on map' : '\uD83D\uDDFA\uFE0F Open route in Google Maps';
+        a.hidden = false;
+      } else {
+        a.hidden = true;
+      }
+    });
   }
 
   calc();
